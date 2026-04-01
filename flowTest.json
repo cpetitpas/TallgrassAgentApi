@@ -1,0 +1,9 @@
+{
+  "nodeId": "NODE-017",
+  "pipelineSegment": "SEG-7A",
+  "flowRate": 118.5,
+  "expectedFlowRate": 150.0,
+  "unit": "MMSCFD",
+  "flowDirection": "FORWARD",
+  "timestamp": "2026-04-01T06:30:00Z"
+}

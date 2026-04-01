@@ -76,4 +76,62 @@ public class ClaudeService
 
         return text;
     }
+    public async Task<string> AnalyzeFlowAsync(FlowRequest flow)
+    {
+        var variance = ((flow.FlowRate - flow.ExpectedFlowRate) / flow.ExpectedFlowRate) * 100;
+        var direction = variance >= 0 ? "above" : "below";
+
+        var prompt = $"""
+            You are an expert natural gas pipeline infrastructure analyst.
+            Analyze the following flow rate data and respond with a JSON object containing:
+            - "analysis": a brief explanation of what this flow reading indicates
+            - "recommended_action": what the operator should do right now
+            - "severity": one of LOW, MEDIUM, or HIGH
+
+            Flow Data:
+            - Node ID: {flow.NodeId}
+            - Pipeline Segment: {flow.PipelineSegment}
+            - Current Flow Rate: {flow.FlowRate} {flow.Unit}
+            - Expected Flow Rate: {flow.ExpectedFlowRate} {flow.Unit}
+            - Variance: {Math.Abs(variance):F1}% {direction} expected
+            - Flow Direction: {flow.FlowDirection}
+            - Timestamp: {flow.Timestamp:u}
+
+            Respond ONLY with the JSON object. No explanation, no markdown, just JSON.
+            """;
+
+        var requestBody = new
+        {
+            model = Model,
+            max_tokens = 512,
+            messages = new[]
+            {
+                new { role = "user", content = prompt }
+            }
+        };
+
+        var json = JsonSerializer.Serialize(requestBody);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        _httpClient.DefaultRequestHeaders.Clear();
+        _httpClient.DefaultRequestHeaders.Add("x-api-key", _apiKey);
+        _httpClient.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
+
+        var response = await _httpClient.PostAsync(ApiUrl, content);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            throw new Exception($"Anthropic API error {(int)response.StatusCode}: {errorBody}");
+        }
+
+        var responseJson = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(responseJson);
+        var text = doc.RootElement
+            .GetProperty("content")[0]
+            .GetProperty("text")
+            .GetString() ?? "";
+
+        return text;
+    }
 }

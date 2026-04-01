@@ -35,3 +35,4 @@ C:\Users\chris\TallgrassAgentApi\obj\Debug\net10.0\TallgrassAgentApi.pdb
 C:\Users\chris\TallgrassAgentApi\obj\Debug\net10.0\TallgrassAgentApi.genruntimeconfig.cache
 C:\Users\chris\TallgrassAgentApi\obj\Debug\net10.0\ref\TallgrassAgentApi.dll
 C:\Users\chris\TallgrassAgentApi\bin\Debug\net10.0\test.json
+C:\Users\chris\TallgrassAgentApi\obj\Debug\net10.0\TallgrassAgentApi.sourcelink.json
