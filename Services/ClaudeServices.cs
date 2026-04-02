@@ -75,6 +75,14 @@ public class ClaudeService
             .GetProperty("text")
             .GetString() ?? "";
 
+        // Strip markdown code fences if Claude wrapped the JSON despite instructions
+        text = text.Trim();
+        if (text.StartsWith("```"))
+        {
+            text = text.Substring(text.IndexOf('\n') + 1);  // remove opening ```json line
+            text = text.Substring(0, text.LastIndexOf("```")).Trim();  // remove closing ```
+        }
+
         return text;
     }
     public async Task<string> AnalyzeFlowAsync(FlowRequest flow)
@@ -133,6 +141,14 @@ public class ClaudeService
             .GetProperty("text")
             .GetString() ?? "";
 
+        // Strip markdown code fences if Claude wrapped the JSON despite instructions
+        text = text.Trim();
+        if (text.StartsWith("```"))
+        {
+            text = text.Substring(text.IndexOf('\n') + 1);  // remove opening ```json line
+            text = text.Substring(0, text.LastIndexOf("```")).Trim();  // remove closing ```
+        }
+
         return text;
     }
     public async Task<string> AnalyzeMultiNodeAsync(MultiNodeRequest request)
@@ -150,25 +166,30 @@ public class ClaudeService
         var readingsBlock = string.Join("\n", readingLines);
 
         var prompt = $"""
-            You are an expert natural gas pipeline infrastructure analyst.
-            Analyze the following set of node readings across a pipeline region and respond
-            with a JSON object containing:
-            - "overall_status": one of NORMAL, DEGRADED, or CRITICAL for the region as a whole
-            - "summary": a concise paragraph summarizing the state of the region and any patterns or concerns
-            - "recommended_action": the single most important action an operator should take right now
-            - "affected_nodes": a JSON array of node IDs that require attention (empty array if none)
+        You are an expert natural gas pipeline infrastructure analyst.
+        Analyze the following set of node readings across a pipeline region.
 
-            Region: {request.RegionId}
-            Total Readings: {request.Readings.Count}
+        IMPORTANT: Your response must be a single raw JSON object. 
+        Do NOT wrap it in markdown. Do NOT use code fences. Do NOT add any text before or after.
 
-            Node Readings:
-            {readingsBlock}
+        The JSON object must contain exactly these four keys:
+        - "overall_status": string, one of: NORMAL, DEGRADED, or CRITICAL
+        - "summary": string, a concise paragraph summarizing the region state and any patterns
+        - "recommended_action": string, the single most important action an operator should take
+        - "affected_nodes": array of strings, the node IDs requiring attention (use empty array if none)
 
-            Consider patterns across nodes — e.g. pressure drop across sequential nodes may indicate
-            a leak, multiple flow anomalies in the same segment may indicate a blockage.
+        Region: {request.RegionId}
+        Total Readings: {request.Readings.Count}
 
-            Respond ONLY with the JSON object. No explanation, no markdown, just JSON.
-            """;
+        Node Readings:
+        {readingsBlock}
+
+        Look for patterns across nodes — a progressive pressure drop across sequential nodes 
+        suggests a leak between those nodes. Multiple flow anomalies in the same segment 
+        suggest a blockage. Correlate by timestamp where relevant.
+
+        Return raw JSON only with no additional text.
+        """;
 
         var requestBody = new
         {
@@ -201,6 +222,14 @@ public class ClaudeService
             .GetProperty("content")[0]
             .GetProperty("text")
             .GetString() ?? "";
+
+        // Strip markdown code fences if Claude wrapped the JSON despite instructions
+        text = text.Trim();
+        if (text.StartsWith("```"))
+        {
+            text = text.Substring(text.IndexOf('\n') + 1);  // remove opening ```json line
+            text = text.Substring(0, text.LastIndexOf("```")).Trim();  // remove closing ```
+        }
 
         return text;
     }
