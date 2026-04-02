@@ -1,0 +1,15 @@
+# Build output
+bin/
+obj/
+
+# User-specific Visual Studio files
+*.user
+*.suo
+.vs/
+
+# Environment/secrets - never commit these
+appsettings.Development.json
+
+# OS clutter
+.DS_Store
+Thumbs.db
