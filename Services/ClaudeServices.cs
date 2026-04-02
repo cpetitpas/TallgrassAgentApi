@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using TallgrassAgentApi.Models;
+using TallgrassAgentApi.Controllers;
 
 namespace TallgrassAgentApi.Services;
 
