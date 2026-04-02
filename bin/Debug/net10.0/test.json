@@ -1,8 +1,0 @@
-{
-  "nodeId": "NODE-042",
-  "alarmType": "HIGH_PRESSURE",
-  "currentValue": 847.3,
-  "threshold": 800.0,
-  "unit": "PSI",
-  "timestamp": "2026-04-01T06:30:00Z"
-}
