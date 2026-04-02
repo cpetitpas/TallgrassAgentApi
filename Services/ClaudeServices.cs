@@ -135,4 +135,73 @@ public class ClaudeService
 
         return text;
     }
+    public async Task<string> AnalyzeMultiNodeAsync(MultiNodeRequest request)
+    {
+        // Build a readable table of all readings for the prompt
+        var readingLines = request.Readings.Select(r =>
+        {
+            var variance = r.ExpectedValue != 0
+                ? ((r.CurrentValue - r.ExpectedValue) / r.ExpectedValue) * 100
+                : 0;
+            return $"  - [{r.ReadingType}] Node {r.NodeId} | {r.MetricName}: {r.CurrentValue} {r.Unit} " +
+                $"(expected {r.ExpectedValue}, variance {variance:+0.#;-0.#;0}%) | Status: {r.Status} | {r.Timestamp:u}";
+        });
+
+        var readingsBlock = string.Join("\n", readingLines);
+
+        var prompt = $"""
+            You are an expert natural gas pipeline infrastructure analyst.
+            Analyze the following set of node readings across a pipeline region and respond
+            with a JSON object containing:
+            - "overall_status": one of NORMAL, DEGRADED, or CRITICAL for the region as a whole
+            - "summary": a concise paragraph summarizing the state of the region and any patterns or concerns
+            - "recommended_action": the single most important action an operator should take right now
+            - "affected_nodes": a JSON array of node IDs that require attention (empty array if none)
+
+            Region: {request.RegionId}
+            Total Readings: {request.Readings.Count}
+
+            Node Readings:
+            {readingsBlock}
+
+            Consider patterns across nodes — e.g. pressure drop across sequential nodes may indicate
+            a leak, multiple flow anomalies in the same segment may indicate a blockage.
+
+            Respond ONLY with the JSON object. No explanation, no markdown, just JSON.
+            """;
+
+        var requestBody = new
+        {
+            model = Model,
+            max_tokens = 1024,
+            messages = new[]
+            {
+                new { role = "user", content = prompt }
+            }
+        };
+
+        var json = JsonSerializer.Serialize(requestBody);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        _httpClient.DefaultRequestHeaders.Clear();
+        _httpClient.DefaultRequestHeaders.Add("x-api-key", _apiKey);
+        _httpClient.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
+
+        var response = await _httpClient.PostAsync(ApiUrl, content);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            throw new Exception($"Anthropic API error {(int)response.StatusCode}: {errorBody}");
+        }
+
+        var responseJson = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(responseJson);
+        var text = doc.RootElement
+            .GetProperty("content")[0]
+            .GetProperty("text")
+            .GetString() ?? "";
+
+        return text;
+    }
 }

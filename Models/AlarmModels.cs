@@ -19,3 +19,34 @@ public class AlarmResponse
     public string RecommendedAction { get; set; } = string.Empty;
     public string Severity { get; set; } = string.Empty;     // LOW / MEDIUM / HIGH
 }
+
+public class NodeReading
+{
+    public string NodeId { get; set; } = string.Empty;
+    public string ReadingType { get; set; } = string.Empty;    // "ALARM" or "FLOW"
+    public string MetricName { get; set; } = string.Empty;     // e.g. "PRESSURE", "FLOW_RATE"
+    public double CurrentValue { get; set; }
+    public double ExpectedValue { get; set; }
+    public string Unit { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;         // e.g. "NORMAL", "WARNING", "CRITICAL"
+    public DateTime Timestamp { get; set; }
+}
+
+public class MultiNodeRequest
+{
+    public string RegionId { get; set; } = string.Empty;       // e.g. "REGION-WEST-4"
+    public List<NodeReading> Readings { get; set; } = new();
+}
+
+public class MultiNodeResponse
+{
+    public string RegionId { get; set; } = string.Empty;
+    public int TotalNodes { get; set; }
+    public int CriticalCount { get; set; }
+    public int WarningCount { get; set; }
+    public int NormalCount { get; set; }
+    public string OverallStatus { get; set; } = string.Empty;  // "NORMAL", "DEGRADED", "CRITICAL"
+    public string Summary { get; set; } = string.Empty;
+    public string RecommendedAction { get; set; } = string.Empty;
+    public List<string> AffectedNodes { get; set; } = new();
+}
