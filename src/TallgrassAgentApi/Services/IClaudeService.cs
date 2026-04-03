@@ -1,5 +1,4 @@
 using TallgrassAgentApi.Models;
-using TallgrassAgentApi.Controllers;
 
 namespace TallgrassAgentApi.Services;
 
