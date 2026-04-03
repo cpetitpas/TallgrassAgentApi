@@ -10,7 +10,7 @@ tests/TallgrassAgentApi.Tests/obj
 .vs/
 
 # Environment/secrets - never commit these
-TallgrassAgentApi/src/appsettings.Development.json
+src/TallgrassAgentApi/appsettings.Development.json
 
 # OS clutter
 .DS_Store
