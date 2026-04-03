@@ -1,0 +1,55 @@
+{
+  "regionId": "REGION-WEST-4",
+  "readings": [
+    {
+      "nodeId": "NODE-011",
+      "readingType": "ALARM",
+      "metricName": "PRESSURE",
+      "currentValue": 798.0,
+      "expectedValue": 850.0,
+      "unit": "PSI",
+      "status": "WARNING",
+      "timestamp": "2026-04-02T06:00:00Z"
+    },
+    {
+      "nodeId": "NODE-012",
+      "readingType": "ALARM",
+      "metricName": "PRESSURE",
+      "currentValue": 741.0,
+      "expectedValue": 850.0,
+      "unit": "PSI",
+      "status": "CRITICAL",
+      "timestamp": "2026-04-02T06:00:00Z"
+    },
+    {
+      "nodeId": "NODE-013",
+      "readingType": "ALARM",
+      "metricName": "PRESSURE",
+      "currentValue": 685.0,
+      "expectedValue": 850.0,
+      "unit": "PSI",
+      "status": "CRITICAL",
+      "timestamp": "2026-04-02T06:00:00Z"
+    },
+    {
+      "nodeId": "NODE-014",
+      "readingType": "FLOW",
+      "metricName": "FLOW_RATE",
+      "currentValue": 98.0,
+      "expectedValue": 150.0,
+      "unit": "MMSCFD",
+      "status": "WARNING",
+      "timestamp": "2026-04-02T06:00:00Z"
+    },
+    {
+      "nodeId": "NODE-015",
+      "readingType": "FLOW",
+      "metricName": "FLOW_RATE",
+      "currentValue": 151.0,
+      "expectedValue": 150.0,
+      "unit": "MMSCFD",
+      "status": "NORMAL",
+      "timestamp": "2026-04-02T06:00:00Z"
+    }
+  ]
+}
