@@ -9,9 +9,9 @@ namespace TallgrassAgentApi.Controllers;
 [Route("api/[controller]")]
 public class MultiNodeController : ControllerBase
 {
-    private readonly ClaudeService _claudeService;
+    private readonly IClaudeService _claudeService;
 
-    public MultiNodeController(ClaudeService claudeService)
+    public MultiNodeController(IClaudeService claudeService)
     {
         _claudeService = claudeService;
     }

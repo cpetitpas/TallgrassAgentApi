@@ -3,7 +3,10 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using TallgrassAgentApi.Models;
+using TallgrassAgentApi.Services;
+using TallgrassAgentApi.Controllers;
 
 namespace TallgrassAgentApi.Tests;
 
@@ -13,16 +16,18 @@ public class EndpointTests : IClassFixture<WebApplicationFactory<Program>>
 
     public EndpointTests(WebApplicationFactory<Program> factory)
     {
-        // Load API key from environment variable for tests
         _client = factory.WithWebHostBuilder(builder =>
         {
-            builder.ConfigureAppConfiguration((context, config) =>
+            builder.ConfigureServices(services =>
             {
-                config.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["Anthropic:ApiKey"] = Environment.GetEnvironmentVariable("Anthropic__ApiKey")
-                        ?? throw new Exception("Anthropic__ApiKey environment variable not set")
-                });
+                // Remove the real ClaudeService registration
+                var descriptor = services.SingleOrDefault(
+                    d => d.ServiceType == typeof(IClaudeService));
+                if (descriptor != null)
+                    services.Remove(descriptor);
+
+                // Register the fake instead
+                services.AddScoped<IClaudeService, FakeClaudeService>();
             });
         }).CreateClient();
     }

@@ -5,7 +5,7 @@ using TallgrassAgentApi.Controllers;
 
 namespace TallgrassAgentApi.Services;
 
-public class ClaudeService
+public class ClaudeService : IClaudeService
 {
     private readonly HttpClient _httpClient;
     private readonly string _apiKey;

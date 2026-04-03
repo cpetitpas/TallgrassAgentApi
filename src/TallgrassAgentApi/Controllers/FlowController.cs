@@ -9,9 +9,9 @@ namespace TallgrassAgentApi.Controllers;
 [Route("api/[controller]")]
 public class FlowController : ControllerBase
 {
-    private readonly ClaudeService _claudeService;
+    private readonly IClaudeService _claudeService;
 
-    public FlowController(ClaudeService claudeService)
+    public FlowController(IClaudeService claudeService)
     {
         _claudeService = claudeService;
     }

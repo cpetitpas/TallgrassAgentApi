@@ -9,10 +9,10 @@ namespace TallgrassAgentApi.Controllers;
 [Route("api/[controller]")]  // endpoint will be: POST /api/alarm/analyze
 public class AlarmController : ControllerBase
 {
-    private readonly ClaudeService _claudeService;
+    private readonly IClaudeService _claudeService;
 
     // ASP.NET "injects" ClaudeService here automatically (registered in Program.cs)
-    public AlarmController(ClaudeService claudeService)
+    public AlarmController(IClaudeService claudeService)
     {
         _claudeService = claudeService;
     }
