@@ -1,7 +1,6 @@
 using System.Text.Json;
 using TallgrassAgentApi.Models;
 using TallgrassAgentApi.Services;
-using TallgrassAgentApi.Controllers;
 
 namespace TallgrassAgentApi.Tests;
 
@@ -22,7 +21,9 @@ public class FakeClaudeService : IClaudeService
 
     public Task<string> AnalyzeFlowAsync(FlowRequest flow)
     {
-        var variance = ((flow.FlowRate - flow.ExpectedFlowRate) / flow.ExpectedFlowRate) * 100;
+        var variance = flow.ExpectedFlowRate != 0
+            ? ((flow.FlowRate - flow.ExpectedFlowRate) / flow.ExpectedFlowRate) * 100
+            : 0;
         var response = new
         {
             analysis = $"Flow rate at {flow.NodeId} on segment {flow.PipelineSegment} is {flow.FlowRate} {flow.Unit}, " +

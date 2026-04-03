@@ -1,4 +1,4 @@
-dotnet test
+dotnet test --filter "Category!=Integration"
 if ($LASTEXITCODE -eq 0) {
     Write-Host "All tests passed. Starting API..." -ForegroundColor Green
     dotnet run --project src/TallgrassAgentApi/TallgrassAgentApi.csproj

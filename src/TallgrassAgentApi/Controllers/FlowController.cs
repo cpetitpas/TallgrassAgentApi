@@ -19,7 +19,9 @@ public class FlowController : ControllerBase
     [HttpPost("analyze")]
     public async Task<ActionResult<FlowResponse>> AnalyzeFlow([FromBody] FlowRequest request)
     {
-        var variance = ((request.FlowRate - request.ExpectedFlowRate) / request.ExpectedFlowRate) * 100;
+        var variance = request.ExpectedFlowRate != 0
+            ? ((request.FlowRate - request.ExpectedFlowRate) / request.ExpectedFlowRate) * 100
+            : 0;
 
         var rawResponse = await _claudeService.AnalyzeFlowAsync(request);
 
