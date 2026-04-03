@@ -19,13 +19,8 @@ public class EndpointTests : IClassFixture<WebApplicationFactory<Program>>
         {
             builder.ConfigureServices(services =>
             {
-                // Remove the real ClaudeService registration
-                var descriptor = services.SingleOrDefault(
-                    d => d.ServiceType == typeof(IClaudeService));
-                if (descriptor != null)
-                    services.Remove(descriptor);
-
-                // Register the fake instead
+                // Remove all IClaudeService registrations and replace with the fake
+                services.RemoveAll<IClaudeService>();
                 services.AddScoped<IClaudeService, FakeClaudeService>();
             });
         }).CreateClient();
