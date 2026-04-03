@@ -1,6 +1,8 @@
 # Build output
-bin/
-obj/
+src/TallgrassAgentApi/bin
+src/TallgrassAgentApi/obj
+tests/TallgrassAgentApi.Tests/bin
+tests/TallgrassAgentApi.Tests/obj
 
 # User-specific Visual Studio files
 *.user
@@ -8,7 +10,7 @@ obj/
 .vs/
 
 # Environment/secrets - never commit these
-appsettings.Development.json
+TallgrassAgentApi/src/appsettings.Development.json
 
 # OS clutter
 .DS_Store
