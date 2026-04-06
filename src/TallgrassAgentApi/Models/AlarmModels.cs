@@ -11,6 +11,27 @@ public class AlarmRequest
     public DateTime Timestamp { get; set; }
 }
 
+public class FlowRequest
+{
+    public string NodeId { get; set; } = string.Empty;
+    public string PipelineSegment { get; set; } = string.Empty;  // e.g. "SEG-7A"
+    public double FlowRate { get; set; }                          // e.g. 142.7
+    public double ExpectedFlowRate { get; set; }                  // e.g. 150.0
+    public string Unit { get; set; } = string.Empty;              // e.g. "MMSCFD"
+    public string FlowDirection { get; set; } = string.Empty;     // e.g. "FORWARD" / "REVERSE"
+    public DateTime Timestamp { get; set; }
+}
+
+public class FlowResponse
+{
+    public string NodeId { get; set; } = string.Empty;
+    public string PipelineSegment { get; set; } = string.Empty;
+    public string Analysis { get; set; } = string.Empty;
+    public string RecommendedAction { get; set; } = string.Empty;
+    public string Severity { get; set; } = string.Empty;
+    public double Variance { get; set; }                          // % difference from expected
+}
+
 // This is what we send back
 public class AlarmResponse
 {

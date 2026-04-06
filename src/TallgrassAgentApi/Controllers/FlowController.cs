@@ -9,9 +9,9 @@ namespace TallgrassAgentApi.Controllers;
 [Route("api/[controller]")]
 public class FlowController : ControllerBase
 {
-    private readonly ClaudeService _claudeService;
+    private readonly IClaudeService _claudeService;
 
-    public FlowController(ClaudeService claudeService)
+    public FlowController(IClaudeService claudeService)
     {
         _claudeService = claudeService;
     }
@@ -19,7 +19,9 @@ public class FlowController : ControllerBase
     [HttpPost("analyze")]
     public async Task<ActionResult<FlowResponse>> AnalyzeFlow([FromBody] FlowRequest request)
     {
-        var variance = ((request.FlowRate - request.ExpectedFlowRate) / request.ExpectedFlowRate) * 100;
+        var variance = request.ExpectedFlowRate != 0
+            ? ((request.FlowRate - request.ExpectedFlowRate) / request.ExpectedFlowRate) * 100
+            : 0;
 
         var rawResponse = await _claudeService.AnalyzeFlowAsync(request);
 

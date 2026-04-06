@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TallgrassAgentApi/TallgrassAgentApi.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TallgrassAgentApi.Tests/TallgrassAgentApi.Tests.csproj" />
+  </Folder>
+</Solution>

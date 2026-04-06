@@ -5,7 +5,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Register services so they can be injected anywhere that needs them
 builder.Services.AddControllers();
 builder.Services.AddHttpClient();  // gives us HttpClient to call external APIs
-builder.Services.AddScoped<ClaudeService>();  // our custom Claude wrapper
+builder.Services.AddScoped<IClaudeService, ClaudeService>();  // our custom Claude wrapper
 
 // Swagger gives you a browser UI to test your endpoints
 builder.Services.AddEndpointsApiExplorer();
@@ -17,3 +17,5 @@ app.UseSwagger();
 app.UseSwaggerUI();
 app.MapControllers();
 app.Run();
+
+public partial class Program { }

@@ -1,11 +1,10 @@
 using System.Text;
 using System.Text.Json;
 using TallgrassAgentApi.Models;
-using TallgrassAgentApi.Controllers;
 
 namespace TallgrassAgentApi.Services;
 
-public class ClaudeService
+public class ClaudeService : IClaudeService
 {
     private readonly HttpClient _httpClient;
     private readonly string _apiKey;
@@ -87,7 +86,9 @@ public class ClaudeService
     }
     public async Task<string> AnalyzeFlowAsync(FlowRequest flow)
     {
-        var variance = ((flow.FlowRate - flow.ExpectedFlowRate) / flow.ExpectedFlowRate) * 100;
+        var variance = flow.ExpectedFlowRate != 0
+            ? ((flow.FlowRate - flow.ExpectedFlowRate) / flow.ExpectedFlowRate) * 100
+            : 0;
         var direction = variance >= 0 ? "above" : "below";
 
         var prompt = $"""
