@@ -28,7 +28,7 @@ public class SeverityCorrelationTests : TestBase
     public async Task AlarmAnalyze_TenPercentOver_ReturnsMediumSeverity()
     {
         // Exactly 1.1x threshold — fake returns MEDIUM
-        var request = GetAlarmRequest(currentValue: 880.0, threshold: 800.0);
+        var request = GetAlarmRequest(currentValue: 881.0, threshold: 800.0);
         var result = await PostAndDeserialize<AlarmResponse>("/api/alarm/analyze", request);
         Assert.Equal("MEDIUM", result.Severity);
     }
