@@ -18,9 +18,53 @@ public class ClaudeService : IClaudeService
         _apiKey = config["Anthropic:ApiKey"] ?? throw new Exception("Anthropic API key not configured");
     }
 
+    private async Task<string> SendToClaudeAsync(string prompt, int maxTokens = 512)
+    {
+        var requestBody = new
+        {
+            model = Model,
+            max_tokens = maxTokens,
+            messages = new[]
+            {
+                new { role = "user", content = prompt }
+            }
+        };
+
+        var json = JsonSerializer.Serialize(requestBody);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        _httpClient.DefaultRequestHeaders.Clear();
+        _httpClient.DefaultRequestHeaders.Add("x-api-key", _apiKey);
+        _httpClient.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
+
+        var response = await _httpClient.PostAsync(ApiUrl, content);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            throw new Exception($"Anthropic API error {(int)response.StatusCode}: {errorBody}");
+        }
+
+        var responseJson = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(responseJson);
+        var text = doc.RootElement
+            .GetProperty("content")[0]
+            .GetProperty("text")
+            .GetString() ?? "";
+
+        // Strip markdown code fences if Claude wrapped the JSON despite instructions
+        text = text.Trim();
+        if (text.StartsWith("```"))
+        {
+            text = text.Substring(text.IndexOf('\n') + 1);
+            text = text.Substring(0, text.LastIndexOf("```")).Trim();
+        }
+
+        return text;
+    }
+
     public async Task<string> AnalyzeAlarmAsync(AlarmRequest alarm)
     {
-        // Build the prompt — this is where your prompt engineering skills matter
         var prompt = $"""
             You are an expert pipeline infrastructure analyst.
             Analyze the following alarm event and respond with a JSON object containing:
@@ -38,52 +82,9 @@ public class ClaudeService : IClaudeService
             Respond ONLY with the JSON object. No explanation, no markdown, just JSON.
             """;
 
-        // Build the request body exactly as the Anthropic API expects it
-        var requestBody = new
-        {
-            model = Model,
-            max_tokens = 512,
-            messages = new[]
-            {
-                new { role = "user", content = prompt }
-            }
-        };
-
-        // Serialize to JSON and set required Anthropic headers
-        var json = JsonSerializer.Serialize(requestBody);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-        _httpClient.DefaultRequestHeaders.Clear();
-        _httpClient.DefaultRequestHeaders.Add("x-api-key", _apiKey);
-        _httpClient.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
-
-        // Make the call
-        var response = await _httpClient.PostAsync(ApiUrl, content);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var errorBody = await response.Content.ReadAsStringAsync();
-            throw new Exception($"Anthropic API error {(int)response.StatusCode}: {errorBody}");
-        }
-
-        // Parse the response — Claude's reply is nested inside content[0].text
-        var responseJson = await response.Content.ReadAsStringAsync();
-        using var doc = JsonDocument.Parse(responseJson);
-        var text = doc.RootElement
-            .GetProperty("content")[0]
-            .GetProperty("text")
-            .GetString() ?? "";
-
-        // Strip markdown code fences if Claude wrapped the JSON despite instructions
-        text = text.Trim();
-        if (text.StartsWith("```"))
-        {
-            text = text.Substring(text.IndexOf('\n') + 1);  // remove opening ```json line
-            text = text.Substring(0, text.LastIndexOf("```")).Trim();  // remove closing ```
-        }
-
-        return text;
+        return await SendToClaudeAsync(prompt);
     }
+
     public async Task<string> AnalyzeFlowAsync(FlowRequest flow)
     {
         var variance = flow.ExpectedFlowRate != 0
@@ -110,51 +111,11 @@ public class ClaudeService : IClaudeService
             Respond ONLY with the JSON object. No explanation, no markdown, just JSON.
             """;
 
-        var requestBody = new
-        {
-            model = Model,
-            max_tokens = 512,
-            messages = new[]
-            {
-                new { role = "user", content = prompt }
-            }
-        };
-
-        var json = JsonSerializer.Serialize(requestBody);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-        _httpClient.DefaultRequestHeaders.Clear();
-        _httpClient.DefaultRequestHeaders.Add("x-api-key", _apiKey);
-        _httpClient.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
-
-        var response = await _httpClient.PostAsync(ApiUrl, content);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var errorBody = await response.Content.ReadAsStringAsync();
-            throw new Exception($"Anthropic API error {(int)response.StatusCode}: {errorBody}");
-        }
-
-        var responseJson = await response.Content.ReadAsStringAsync();
-        using var doc = JsonDocument.Parse(responseJson);
-        var text = doc.RootElement
-            .GetProperty("content")[0]
-            .GetProperty("text")
-            .GetString() ?? "";
-
-        // Strip markdown code fences if Claude wrapped the JSON despite instructions
-        text = text.Trim();
-        if (text.StartsWith("```"))
-        {
-            text = text.Substring(text.IndexOf('\n') + 1);  // remove opening ```json line
-            text = text.Substring(0, text.LastIndexOf("```")).Trim();  // remove closing ```
-        }
-
-        return text;
+        return await SendToClaudeAsync(prompt);
     }
+
     public async Task<string> AnalyzeMultiNodeAsync(MultiNodeRequest request)
     {
-        // Build a readable table of all readings for the prompt
         var readingLines = request.Readings.Select(r =>
         {
             var variance = r.ExpectedValue != 0
@@ -192,46 +153,6 @@ public class ClaudeService : IClaudeService
         Return raw JSON only with no additional text.
         """;
 
-        var requestBody = new
-        {
-            model = Model,
-            max_tokens = 1024,
-            messages = new[]
-            {
-                new { role = "user", content = prompt }
-            }
-        };
-
-        var json = JsonSerializer.Serialize(requestBody);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-        _httpClient.DefaultRequestHeaders.Clear();
-        _httpClient.DefaultRequestHeaders.Add("x-api-key", _apiKey);
-        _httpClient.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
-
-        var response = await _httpClient.PostAsync(ApiUrl, content);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var errorBody = await response.Content.ReadAsStringAsync();
-            throw new Exception($"Anthropic API error {(int)response.StatusCode}: {errorBody}");
-        }
-
-        var responseJson = await response.Content.ReadAsStringAsync();
-        using var doc = JsonDocument.Parse(responseJson);
-        var text = doc.RootElement
-            .GetProperty("content")[0]
-            .GetProperty("text")
-            .GetString() ?? "";
-
-        // Strip markdown code fences if Claude wrapped the JSON despite instructions
-        text = text.Trim();
-        if (text.StartsWith("```"))
-        {
-            text = text.Substring(text.IndexOf('\n') + 1);  // remove opening ```json line
-            text = text.Substring(0, text.LastIndexOf("```")).Trim();  // remove closing ```
-        }
-
-        return text;
+        return await SendToClaudeAsync(prompt, maxTokens: 1024);
     }
 }

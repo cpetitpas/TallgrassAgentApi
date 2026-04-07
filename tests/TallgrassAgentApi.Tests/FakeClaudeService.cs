@@ -56,13 +56,20 @@ public class FakeClaudeService : IClaudeService
 
         var affectedNodes = criticalNodes.Concat(warningNodes).ToList();
 
+        var pressureNodes = request.Readings
+            .Where(r => r.MetricName == "PRESSURE" && r.Status != "NORMAL")
+            .Select(r => r.NodeId)
+            .ToList();
+
+        var leakNote = pressureNodes.Count >= 2
+            ? $" A progressive pressure drop across sequential nodes suggests a possible leak between {pressureNodes.First()} and {pressureNodes.Last()}."
+            : "";
+
         var response = new
         {
             overall_status = overallStatus,
             summary = $"Region {request.RegionId} has {criticalNodes.Count} critical and " +
-                      $"{warningNodes.Count} warning nodes out of {request.Readings.Count} total. " +
-                      $"A progressive pressure drop across sequential nodes suggests a possible leak " +
-                      $"between NODE-011 and NODE-013.",
+                      $"{warningNodes.Count} warning nodes out of {request.Readings.Count} total.{leakNote}",
             recommended_action = criticalNodes.Count > 0
                 ? $"Immediate inspection required at nodes: {string.Join(", ", criticalNodes)}."
                 : "Monitor warning nodes and schedule inspection.",

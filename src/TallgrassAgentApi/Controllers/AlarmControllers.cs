@@ -20,11 +20,10 @@ public class AlarmController : ControllerBase
     [HttpPost("analyze")]
     public async Task<ActionResult<AlarmResponse>> AnalyzeAlarm([FromBody] AlarmRequest request)
     {
-        // Call Claude via our service
-        var rawResponse = await _claudeService.AnalyzeAlarmAsync(request);
-
         if (string.IsNullOrWhiteSpace(request.NodeId))
         return BadRequest("NodeId is required.");
+        // Call Claude via our service
+        var rawResponse = await _claudeService.AnalyzeAlarmAsync(request);
 
         // Claude was told to return JSON — parse it into our response model
         try
