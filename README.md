@@ -1,5 +1,4 @@
-### TAllgrass-like Agent AI
- API
+### TAllgrass-like Agent AI API
 
 ## Overview
 TAllgrass Agent AI is an API that provides intelligent agent capabilities for the Tallgrass platform. It enables autonomous task execution and decision-making through AI-powered workflows.
