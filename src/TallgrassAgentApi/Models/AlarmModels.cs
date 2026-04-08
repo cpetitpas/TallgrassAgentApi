@@ -71,3 +71,21 @@ public class MultiNodeResponse
     public string RecommendedAction { get; set; } = string.Empty;
     public List<string> AffectedNodes { get; set; } = new();
 }
+
+public class TelemetryEvent
+{
+    public string EventId { get; set; } = Guid.NewGuid().ToString("N")[..8].ToUpper();
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public string NodeId { get; set; } = string.Empty;
+    public string PipelineSegment { get; set; } = string.Empty;
+    public string EventType { get; set; } = string.Empty;   // "ALARM" | "FLOW" | "MULTINODE"
+    public string Severity { get; set; } = string.Empty;    // "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | "NORMAL" | "DEGRADED"
+    public string Analysis { get; set; } = string.Empty;
+    public string RecommendedAction { get; set; } = string.Empty;
+    public double? CurrentValue { get; set; }
+    public double? Threshold { get; set; }
+    public string? Unit { get; set; }
+    public double? VariancePercent { get; set; }            // flow events only
+    public int? TotalNodes { get; set; }                    // multinode events only
+    public int? AffectedNodes { get; set; }                 // multinode events only
+}
