@@ -13,7 +13,8 @@ public class TelemetrySimulator : BackgroundService
 
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
-        PropertyNameCaseInsensitive = true
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
     };
 
     private static readonly string[] NodeIds =
