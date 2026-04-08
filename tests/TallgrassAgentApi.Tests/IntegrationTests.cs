@@ -1,5 +1,4 @@
 using System.Net.Http.Json;
-using System.Runtime;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -9,6 +8,9 @@ using TallgrassAgentApi.Services;
 
 namespace TallgrassAgentApi.Tests;
 
+// Note: IntegrationTests does not inherit TestBase because it uses the real
+// ClaudeService with a live API key rather than the FakeClaudeService.
+// Helper methods are duplicated here intentionally.
 [Trait("Category", "Integration")]
 public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
 {

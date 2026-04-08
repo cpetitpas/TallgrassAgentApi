@@ -11,6 +11,15 @@ public class AlarmRequest
     public DateTime Timestamp { get; set; }
 }
 
+// This is what we send back
+public class AlarmResponse
+{
+    public string NodeId { get; set; } = string.Empty;
+    public string Analysis { get; set; } = string.Empty;     // Claude's response
+    public string RecommendedAction { get; set; } = string.Empty;
+    public string Severity { get; set; } = string.Empty;     // LOW / MEDIUM / HIGH
+}
+
 public class FlowRequest
 {
     public string NodeId { get; set; } = string.Empty;
@@ -30,15 +39,6 @@ public class FlowResponse
     public string RecommendedAction { get; set; } = string.Empty;
     public string Severity { get; set; } = string.Empty;
     public double Variance { get; set; }                          // % difference from expected
-}
-
-// This is what we send back
-public class AlarmResponse
-{
-    public string NodeId { get; set; } = string.Empty;
-    public string Analysis { get; set; } = string.Empty;     // Claude's response
-    public string RecommendedAction { get; set; } = string.Empty;
-    public string Severity { get; set; } = string.Empty;     // LOW / MEDIUM / HIGH
 }
 
 public class NodeReading
