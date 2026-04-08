@@ -1,7 +1,7 @@
 ### TAllgrass-like Agent AI API
 
 ## Overview
-TAllgrass Agent AI is an API that provides intelligent agent capabilities for the Tallgrass platform. It enables autonomous task execution and decision-making through AI-powered workflows.
+Tallgrass Agent AI is an API that provides intelligent agent capabilities for the Tallgrass platform. It enables autonomous task execution and decision-making through AI-powered workflows.
 
 ## Getting Started
 
@@ -10,7 +10,6 @@ TAllgrass Agent AI is an API that provides intelligent agent capabilities for th
 - Visual Studio or VS Code
 
 ### Starting and testing the API
-```
 Run tests and start the API
 ```bash
 ./run
@@ -26,7 +25,7 @@ The API will be available at `https://localhost:5119/dashboard.html`
 ```bash
 dotnet test --filter "Category!=Integration"
 ```
-Run integration tests (using real ClaudeService)
+Run integration tests (using real ClaudeService - API key required)
 ```bash
 dotnet test --filter "Category=Integration"
 ```
