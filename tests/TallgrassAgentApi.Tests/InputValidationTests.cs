@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Configuration;
 using TallgrassAgentApi.Models;
-using TallgrassAgentApi.Services;
 
 namespace TallgrassAgentApi.Tests;
 

@@ -2,7 +2,6 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using TallgrassAgentApi.Models;
@@ -27,7 +26,7 @@ public class SeverityCorrelationTests : TestBase
     [Fact]
     public async Task AlarmAnalyze_TenPercentOver_ReturnsMediumSeverity()
     {
-        // Exactly 1.1x threshold — fake returns MEDIUM
+        // 1.1x threshold (slightly above to avoid rounding issues) — fake returns MEDIUM
         var request = GetAlarmRequest(currentValue: 881.0, threshold: 800.0);
         var result = await PostAndDeserialize<AlarmResponse>("/api/alarm/analyze", request);
         Assert.Equal("MEDIUM", result.Severity);
