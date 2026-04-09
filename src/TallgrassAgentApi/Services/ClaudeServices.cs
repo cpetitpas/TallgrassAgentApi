@@ -18,7 +18,7 @@ public class ClaudeService : IClaudeService
         _apiKey = config["Anthropic:ApiKey"] ?? throw new Exception("Anthropic API key not configured");
     }
 
-    private async Task<string> SendToClaudeAsync(string prompt, int maxTokens = 512)
+    private async Task<string> SendToClaudeAsync(string prompt, CancellationToken ct, int maxTokens = 512)
     {
         var requestBody = new
         {
@@ -37,7 +37,7 @@ public class ClaudeService : IClaudeService
         _httpClient.DefaultRequestHeaders.Add("x-api-key", _apiKey);
         _httpClient.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
 
-        var response = await _httpClient.PostAsync(ApiUrl, content);
+        var response = await _httpClient.PostAsync(ApiUrl, content, ct);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -63,7 +63,7 @@ public class ClaudeService : IClaudeService
         return text;
     }
 
-    public async Task<string> AnalyzeAlarmAsync(AlarmRequest alarm)
+    public async Task<string> AnalyzeAlarmAsync(AlarmRequest alarm, CancellationToken ct = default)
     {
         var prompt = $"""
             You are an expert pipeline infrastructure analyst.
@@ -82,10 +82,10 @@ public class ClaudeService : IClaudeService
             Respond ONLY with the JSON object. No explanation, no markdown, just JSON.
             """;
 
-        return await SendToClaudeAsync(prompt);
+        return await SendToClaudeAsync(prompt, ct);
     }
 
-    public async Task<string> AnalyzeFlowAsync(FlowRequest flow)
+    public async Task<string> AnalyzeFlowAsync(FlowRequest flow, CancellationToken ct = default)
     {
         var variance = flow.ExpectedFlowRate != 0
             ? ((flow.FlowRate - flow.ExpectedFlowRate) / flow.ExpectedFlowRate) * 100
@@ -111,10 +111,10 @@ public class ClaudeService : IClaudeService
             Respond ONLY with the JSON object. No explanation, no markdown, just JSON.
             """;
 
-        return await SendToClaudeAsync(prompt);
+        return await SendToClaudeAsync(prompt, ct);
     }
 
-    public async Task<string> AnalyzeMultiNodeAsync(MultiNodeRequest request)
+    public async Task<string> AnalyzeMultiNodeAsync(MultiNodeRequest request, CancellationToken ct = default)
     {
         var readingLines = request.Readings.Select(r =>
         {
@@ -153,6 +153,6 @@ public class ClaudeService : IClaudeService
         Return raw JSON only with no additional text.
         """;
 
-        return await SendToClaudeAsync(prompt, maxTokens: 1024);
+        return await SendToClaudeAsync(prompt, ct, maxTokens: 1024);
     }
 }

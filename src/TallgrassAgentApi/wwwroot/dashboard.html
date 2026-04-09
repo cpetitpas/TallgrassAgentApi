@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tallgrass Pipeline — Live Telemetry</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg:         #0a0e14;
+    --panel:      #0f1419;
+    --border:     #2a3f52;
+    --grid:       #1a2838;
+    --text:       #e8f0f8;
+    --dim:        #7a8fa0;
+    --accent:     #00e5ff;
+    --accent-dim: #003f52;
+
+    --low:        #00ff88;
+    --low-dim:    #004d28;
+    --med:        #ffcc00;
+    --med-dim:    #664400;
+    --high:       #ff4444;
+    --high-dim:   #660000;
+    --normal:     #00ff88;
+    --degraded:   #ffcc00;
+    --critical:   #ff4444;
+    --unknown:    #8fa8b8;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Barlow Condensed', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,229,255,.01) 2px,
+      rgba(0,229,255,.01) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* ── Header ──────────────────────────────────── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 32px;
+    height: 68px;
+    background: var(--panel);
+    border-bottom: 2px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .logo-mark {
+    font-size: 26px;
+    font-weight: 900;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .logo-sub {
+    font-size: 13px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--dim);
+    font-weight: 300;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 32px;
+  }
+
+  .conn-indicator {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 14px;
+    letter-spacing: 2px;
+    color: var(--dim);
+  }
+  .conn-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--dim);
+    transition: background .3s;
+  }
+  .conn-dot.live { background: var(--low); box-shadow: 0 0 10px var(--low); animation: pulse-dot 2s infinite; }
+  .conn-dot.error { background: var(--high); box-shadow: 0 0 10px var(--high); }
+  @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  .clock {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 15px;
+    color: var(--accent);
+    letter-spacing: 2px;
+  }
+
+  /* ── Stats bar ───────────────────────────────── */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    border-bottom: 2px solid var(--border);
+    background: var(--panel);
+  }
+
+  .stat {
+    padding: 16px 24px;
+    border-right: 1px solid var(--border);
+  }
+  .stat:last-child { border-right: none; }
+
+  .stat-label {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .stat-value {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 32px;
+    line-height: 1;
+    color: var(--text);
+    transition: color .3s;
+  }
+  .stat-value.flash { animation: flash-val .4s; }
+  @keyframes flash-val { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+  #stat-high .stat-value { color: var(--high); }
+  #stat-med  .stat-value { color: var(--med); }
+  #stat-low  .stat-value { color: var(--low); }
+  #stat-total .stat-value { color: var(--accent); }
+
+  /* ── Main layout ─────────────────────────────── */
+  main {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    height: calc(100vh - 68px - 76px);
+  }
+
+  /* ── Feed ────────────────────────────────────── */
+  #feed {
+    border-right: 2px solid var(--border);
+    overflow-y: auto;
+    scroll-behavior: smooth;
+  }
+  #feed::-webkit-scrollbar { width: 6px; }
+  #feed::-webkit-scrollbar-track { background: transparent; }
+  #feed::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .feed-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--panel);
+    z-index: 10;
+  }
+  .feed-title {
+    font-size: 12px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--dim);
+    font-weight: 600;
+  }
+
+  .filter-btns {
+    display: flex;
+    gap: 8px;
+  }
+  .filter-btn {
+    padding: 5px 12px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--dim);
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .filter-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .filter-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+
+  /* ── Event card ──────────────────────────────── */
+  .event-card {
+    display: grid;
+    grid-template-columns: 5px 1fr;
+    border-bottom: 1px solid var(--grid);
+    animation: slide-in .3s ease-out;
+    transition: background .15s;
+  }
+  .event-card:hover { background: rgba(255,255,255,.03); }
+
+  @keyframes slide-in {
+    from { transform: translateX(-12px); opacity: 0; }
+    to   { transform: translateX(0);    opacity: 1; }
+  }
+
+  .severity-stripe { background: var(--dim); }
+  .event-card[data-sev="HIGH"]     .severity-stripe,
+  .event-card[data-sev="CRITICAL"] .severity-stripe { background: var(--high); box-shadow: 3px 0 10px var(--high); }
+  .event-card[data-sev="MEDIUM"]   .severity-stripe,
+  .event-card[data-sev="DEGRADED"] .severity-stripe { background: var(--med); box-shadow: 3px 0 10px var(--med); }
+  .event-card[data-sev="LOW"]      .severity-stripe,
+  .event-card[data-sev="NORMAL"]   .severity-stripe { background: var(--low); box-shadow: 3px 0 10px var(--low); }
+
+  .event-body {
+    padding: 16px 22px;
+  }
+
+  .event-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+
+  .event-id {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    color: var(--dim);
+  }
+  .event-node {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+  .event-type-badge {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    border: 1px solid;
+    border-radius: 3px;
+  }
+  .type-ALARM     { color: #ff9944; border-color: #ff9944; background: rgba(255,153,68,.12); }
+  .type-FLOW      { color: #44ccff; border-color: #44ccff; background: rgba(68,204,255,.12); }
+  .type-MULTINODE { color: #e088ff; border-color: #e088ff; background: rgba(224,136,255,.12); }
+
+  .sev-badge {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    padding: 3px 9px;
+    border-radius: 3px;
+    margin-left: auto;
+  }
+  .sev-HIGH,.sev-CRITICAL { background: var(--high-dim); color: var(--high); }
+  .sev-MEDIUM,.sev-DEGRADED { background: var(--med-dim); color: var(--med); }
+  .sev-LOW,.sev-NORMAL { background: var(--low-dim); color: var(--low); }
+  .sev-UNKNOWN { background: #1a3050; color: var(--unknown); }
+
+  .event-analysis {
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--text);
+    margin-bottom: 8px;
+    font-weight: 400;
+  }
+  .event-action {
+    font-size: 13px;
+    color: var(--dim);
+    letter-spacing: .5px;
+  }
+  .event-action span { color: var(--accent); font-weight: 600; }
+
+  .event-metrics {
+    display: flex;
+    gap: 18px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  .metric {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    color: var(--dim);
+  }
+  .metric b { color: var(--text); font-weight: 600; }
+
+  .event-time {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: var(--dim);
+    margin-top: 8px;
+  }
+
+  /* ── Sidebar ─────────────────────────────────── */
+  .sidebar {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .sidebar::-webkit-scrollbar { width: 6px; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .panel-title {
+    padding: 14px 18px;
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--dim);
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    font-weight: 600;
+  }
+
+  /* Node grid */
+  #node-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .node-cell {
+    background: var(--panel);
+    padding: 12px 14px;
+    transition: background .3s;
+  }
+  .node-cell.flash-node { animation: flash-node .5s; }
+  @keyframes flash-node { 0%,100%{background:var(--panel)} 50%{background:var(--accent-dim)} }
+
+  .node-id-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: var(--dim);
+    margin-bottom: 4px;
+  }
+  .node-sev-indicator {
+    height: 4px;
+    border-radius: 1px;
+    background: var(--dim);
+    margin-bottom: 5px;
+    transition: background .5s;
+  }
+  .ns-HIGH,.ns-CRITICAL { background: var(--high); box-shadow: 0 0 8px var(--high); }
+  .ns-MEDIUM,.ns-DEGRADED { background: var(--med); box-shadow: 0 0 8px var(--med); }
+  .ns-LOW,.ns-NORMAL { background: var(--low); box-shadow: 0 0 8px var(--low); }
+
+  .node-last-val {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 15px;
+    color: var(--text);
+    font-weight: 600;
+  }
+  .node-last-val span { font-size: 11px; color: var(--dim); margin-left: 3px; }
+
+  /* Activity chart */
+  #activity-wrap {
+    padding: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .chart-label {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin-bottom: 10px;
+    font-weight: 600;
+  }
+  #activity-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 68px;
+  }
+  .bar-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1px;
+    height: 100%;
+    justify-content: flex-end;
+  }
+  .bar-seg {
+    min-height: 2px;
+    border-radius: 1px 1px 0 0;
+    transition: height .4s ease;
+  }
+  .bar-high { background: var(--high); }
+  .bar-med  { background: var(--med); }
+  .bar-low  { background: var(--low); }
+
+  /* Recent actions panel */
+  #actions-list {
+    padding: 0;
+  }
+  .action-item {
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--grid);
+    animation: fade-in .3s;
+  }
+  @keyframes fade-in { from{opacity:0} to{opacity:1} }
+
+  .action-node {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: var(--accent);
+    margin-bottom: 3px;
+    font-weight: 600;
+  }
+  .action-text {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text);
+  }
+
+  /* ── Pause btn ───────────────────────────────── */
+  #pause-btn {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    padding: 12px 26px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    background: var(--panel);
+    border: 2px solid var(--accent);
+    color: var(--accent);
+    cursor: pointer;
+    z-index: 200;
+    transition: all .2s;
+  }
+  #pause-btn:hover { background: var(--accent-dim); }
+  #pause-btn.paused { border-color: var(--med); color: var(--med); }
+
+  /* ── Empty state ─────────────────────────────── */
+  #empty-state {
+    padding: 80px 32px;
+    text-align: center;
+    color: var(--dim);
+  }
+  #empty-state .big { font-size: 56px; margin-bottom: 16px; opacity: .4; }
+  #empty-state p { font-size: 14px; letter-spacing: 3px; text-transform: uppercase; }
+
+  /* Scrollbar global */
+  * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">Tallgrass</div>
+    <div class="logo-sub">Pipeline Telemetry — Live Feed</div>
+  </div>
+  <div class="header-right">
+    <div class="conn-indicator">
+      <div class="conn-dot" id="conn-dot"></div>
+      <span id="conn-label">CONNECTING</span>
+    </div>
+    <div class="clock" id="clock">--:--:--</div>
+  </div>
+</header>
+
+<div class="stats-bar">
+  <div class="stat" id="stat-total">
+    <div class="stat-label">Events Received</div>
+    <div class="stat-value" id="val-total">0</div>
+  </div>
+  <div class="stat" id="stat-high">
+    <div class="stat-label">High / Critical</div>
+    <div class="stat-value" id="val-high">0</div>
+  </div>
+  <div class="stat" id="stat-med">
+    <div class="stat-label">Medium / Degraded</div>
+    <div class="stat-value" id="val-med">0</div>
+  </div>
+  <div class="stat" id="stat-low">
+    <div class="stat-label">Low / Normal</div>
+    <div class="stat-value" id="val-low">0</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Active Nodes</div>
+    <div class="stat-value" id="val-nodes" style="color:var(--accent)">0</div>
+  </div>
+</div>
+
+<main>
+  <!-- Feed -->
+  <div id="feed">
+    <div class="feed-header">
+      <div class="feed-title">Event Stream</div>
+      <div class="filter-btns">
+        <button class="filter-btn active" data-filter="ALL">ALL</button>
+        <button class="filter-btn" data-filter="ALARM">ALARM</button>
+        <button class="filter-btn" data-filter="FLOW">FLOW</button>
+        <button class="filter-btn" data-filter="MULTINODE">MULTI</button>
+        <button class="filter-btn" data-filter="HIGH">⬤ HIGH</button>
+      </div>
+    </div>
+    <div id="event-list">
+      <div id="empty-state">
+        <div class="big">◈</div>
+        <p>Awaiting telemetry stream</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="panel-title">Node Status</div>
+    <div id="node-grid"></div>
+
+    <div id="activity-wrap">
+      <div class="chart-label">60-Second Activity</div>
+      <div id="activity-bars"></div>
+    </div>
+
+    <div class="panel-title">Recent Actions</div>
+    <div id="actions-list"></div>
+  </aside>
+</main>
+
+<button id="pause-btn">⏸ Pause</button>
+
+
+<script>
+  // ── State ──────────────────────────────────────────────────────────────────
+  const MAX_CARDS   = 120;
+  const MAX_ACTIONS = 20;
+  const CHART_BINS  = 20;
+
+  let counts    = { total: 0, high: 0, med: 0, low: 0 };
+  let nodes     = {};           // nodeId → { sev, value, unit }
+  let actBins   = Array(CHART_BINS).fill(null).map(() => ({ h: 0, m: 0, l: 0 }));
+  let binTimer  = null;
+  let paused    = false;
+  let activeFilter = 'ALL';
+  let eventBuf  = [];           // buffer while paused
+
+  // ── Clock ──────────────────────────────────────────────────────────────────
+  function tick() {
+    document.getElementById('clock').textContent =
+      new Date().toLocaleTimeString('en-US', { hour12: false });
+  }
+  tick();
+  setInterval(tick, 1000);
+
+  // ── Activity chart rotation ────────────────────────────────────────────────
+  function rotateBin() {
+    actBins.shift();
+    actBins.push({ h: 0, m: 0, l: 0 });
+    renderChart();
+  }
+  binTimer = setInterval(rotateBin, 3000);
+
+  function bumpBin(sev) {
+    const cur = actBins[actBins.length - 1];
+    if (/HIGH|CRITICAL/.test(sev)) cur.h++;
+    else if (/MED|DEG/.test(sev))  cur.m++;
+    else                            cur.l++;
+    renderChart();
+  }
+
+  function renderChart() {
+    const wrap = document.getElementById('activity-bars');
+    wrap.innerHTML = '';
+    const maxCount = Math.max(1, ...actBins.map(b => b.h + b.m + b.l));
+    actBins.forEach(b => {
+      const col = document.createElement('div');
+      col.className = 'bar-col';
+      const total = b.h + b.m + b.l;
+      if (total === 0) {
+        col.innerHTML = '<div class="bar-seg bar-low" style="height:2px;opacity:.2"></div>';
+      } else {
+        const scale = 54 / maxCount;
+        if (b.h) col.innerHTML += `<div class="bar-seg bar-high" style="height:${b.h*scale}px"></div>`;
+        if (b.m) col.innerHTML += `<div class="bar-seg bar-med"  style="height:${b.m*scale}px"></div>`;
+        if (b.l) col.innerHTML += `<div class="bar-seg bar-low"  style="height:${b.l*scale}px"></div>`;
+      }
+      wrap.appendChild(col);
+    });
+  }
+  renderChart();
+
+  // ── Node grid ─────────────────────────────────────────────────────────────
+  function updateNode(id, sev, value, unit) {
+    nodes[id] = { sev, value, unit };
+    renderNodeGrid();
+    document.getElementById('val-nodes').textContent = Object.keys(nodes).length;
+  }
+
+  function renderNodeGrid() {
+    const grid = document.getElementById('node-grid');
+    grid.innerHTML = '';
+    Object.entries(nodes).forEach(([id, info]) => {
+      const cell = document.createElement('div');
+      cell.className = 'node-cell';
+      cell.id = `nc-${id}`;
+      const dispVal = info.value != null ? Number(info.value).toFixed(1) : '—';
+      cell.innerHTML = `
+        <div class="node-id-label">${id}</div>
+        <div class="node-sev-indicator ns-${info.sev}"></div>
+        <div class="node-last-val">${dispVal}<span>${info.unit ?? ''}</span></div>`;
+      grid.appendChild(cell);
+    });
+  }
+
+  // ── Actions list ──────────────────────────────────────────────────────────
+  function addAction(nodeId, action) {
+    const list = document.getElementById('actions-list');
+    const item = document.createElement('div');
+    item.className = 'action-item';
+    item.innerHTML = `
+      <div class="action-node">${nodeId}</div>
+      <div class="action-text">${action}</div>`;
+    list.prepend(item);
+    while (list.children.length > MAX_ACTIONS) list.lastChild.remove();
+  }
+
+  // ── Stats flash ───────────────────────────────────────────────────────────
+  function flashStat(elId) {
+    const el = document.getElementById(elId);
+    el.classList.remove('flash');
+    void el.offsetWidth;
+    el.classList.add('flash');
+  }
+
+  function updateStats(sev) {
+    counts.total++;
+    document.getElementById('val-total').textContent = counts.total;
+    flashStat('val-total');
+
+    if (/HIGH|CRITICAL/.test(sev)) {
+      counts.high++;
+      document.getElementById('val-high').textContent = counts.high;
+      flashStat('val-high');
+    } else if (/MED|DEG/.test(sev)) {
+      counts.med++;
+      document.getElementById('val-med').textContent = counts.med;
+      flashStat('val-med');
+    } else {
+      counts.low++;
+      document.getElementById('val-low').textContent = counts.low;
+      flashStat('val-low');
+    }
+  }
+
+  // ── Build card ─────────────────────────────────────────────────────────────
+  function buildCard(evt) {
+    const sev = (evt.severity ?? 'UNKNOWN').toUpperCase();
+    const type = (evt.eventType ?? 'ALARM').toUpperCase();
+
+    // Metrics row
+    let metricsHTML = '';
+    if (evt.currentValue != null) {
+      metricsHTML += `<div class="metric">VALUE <b>${Number(evt.currentValue).toFixed(1)} ${evt.unit ?? ''}</b></div>`;
+    }
+    if (evt.threshold != null) {
+      metricsHTML += `<div class="metric">THRESHOLD <b>${evt.threshold} ${evt.unit ?? ''}</b></div>`;
+    }
+    if (evt.variancePercent != null) {
+      metricsHTML += `<div class="metric">VARIANCE <b>${Number(evt.variancePercent).toFixed(1)}%</b></div>`;
+    }
+    if (evt.totalNodes != null) {
+      metricsHTML += `<div class="metric">NODES <b>${evt.affectedNodes ?? 0}/${evt.totalNodes}</b></div>`;
+    }
+
+    const ts = new Date(evt.timestamp).toLocaleTimeString('en-US', { hour12: false });
+
+    const card = document.createElement('div');
+    card.className = 'event-card';
+    card.dataset.sev  = sev;
+    card.dataset.type = type;
+    card.innerHTML = `
+      <div class="severity-stripe"></div>
+      <div class="event-body">
+        <div class="event-meta">
+          <span class="event-id">#${evt.eventId ?? '——'}</span>
+          <span class="event-node">${evt.nodeId}</span>
+          <span class="event-type-badge type-${type}">${type}</span>
+          <span class="sev-badge sev-${sev}">${sev}</span>
+        </div>
+        <div class="event-analysis">${evt.analysis ?? ''}</div>
+        <div class="event-action"><span>▶ ACTION:</span> ${evt.recommendedAction ?? ''}</div>
+        ${metricsHTML ? `<div class="event-metrics">${metricsHTML}</div>` : ''}
+        <div class="event-time">${ts} UTC</div>
+      </div>`;
+    return card;
+  }
+
+  // ── Render event ──────────────────────────────────────────────────────────
+  function renderEvent(evt) {
+    const sev  = (evt.severity ?? 'UNKNOWN').toUpperCase();
+    const type = (evt.eventType ?? 'ALARM').toUpperCase();
+
+    updateStats(sev);
+    bumpBin(sev);
+    updateNode(evt.nodeId, sev, evt.currentValue, evt.unit);
+    if (evt.recommendedAction) addAction(evt.nodeId, evt.recommendedAction);
+
+    // Filter
+    const show =
+      activeFilter === 'ALL' ||
+      activeFilter === type ||
+      (activeFilter === 'HIGH' && /HIGH|CRITICAL/.test(sev));
+
+    const list = document.getElementById('event-list');
+    const empty = document.getElementById('empty-state');
+    if (empty) empty.remove();
+
+    if (show) {
+      const card = buildCard(evt);
+      list.prepend(card);
+      while (list.children.length > MAX_CARDS) list.lastChild.remove();
+    }
+  }
+
+  // ── SSE connection ────────────────────────────────────────────────────────
+  const SSE_URL = '/api/stream/events';
+  let es;
+
+  function connect() {
+    setConnStatus('connecting');
+    es = new EventSource(SSE_URL);
+
+    es.addEventListener('telemetry', e => {
+      try {
+        const evt = JSON.parse(e.data);
+        if (paused) { eventBuf.push(evt); return; }
+        renderEvent(evt);
+      } catch (err) { console.error('Parse error', err); }
+    });
+
+    es.onopen  = () => setConnStatus('live');
+    es.onerror = () => {
+      setConnStatus('error');
+      es.close();
+      setTimeout(connect, 4000);   // reconnect after 4 s
+    };
+  }
+
+  function setConnStatus(state) {
+    const dot   = document.getElementById('conn-dot');
+    const label = document.getElementById('conn-label');
+    dot.className   = `conn-dot ${state === 'live' ? 'live' : state === 'error' ? 'error' : ''}`;
+    label.textContent = state === 'live' ? 'LIVE' : state === 'error' ? 'RECONNECTING...' : 'CONNECTING';
+  }
+
+  connect();
+
+  // ── Pause / resume ────────────────────────────────────────────────────────
+  document.getElementById('pause-btn').addEventListener('click', function() {
+    paused = !paused;
+    this.textContent = paused ? '▶ Resume' : '⏸ Pause';
+    this.classList.toggle('paused', paused);
+
+    if (!paused) {
+      eventBuf.forEach(renderEvent);
+      eventBuf = [];
+    }
+  });
+
+  // ── Filter buttons ────────────────────────────────────────────────────────
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      activeFilter = this.dataset.filter;
+
+      // Re-evaluate visibility of existing cards
+      document.querySelectorAll('.event-card').forEach(card => {
+        const t = card.dataset.type;
+        const s = card.dataset.sev;
+        const show =
+          activeFilter === 'ALL' ||
+          activeFilter === t ||
+          (activeFilter === 'HIGH' && /HIGH|CRITICAL/.test(s));
+        card.style.display = show ? '' : 'none';
+      });
+    });
+  });
+</script>
+</body>
+</html>

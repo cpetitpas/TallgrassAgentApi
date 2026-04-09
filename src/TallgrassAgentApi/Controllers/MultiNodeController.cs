@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using TallgrassAgentApi.Models;
 using TallgrassAgentApi.Services;
 using System.Text.Json;
+using System.Threading;
 
 namespace TallgrassAgentApi.Controllers;
 
@@ -17,12 +18,12 @@ public class MultiNodeController : ControllerBase
     }
 
     [HttpPost("analyze")]
-    public async Task<ActionResult<MultiNodeResponse>> AnalyzeMultiNode([FromBody] MultiNodeRequest request)
+    public async Task<ActionResult<MultiNodeResponse>> AnalyzeMultiNode([FromBody] MultiNodeRequest request, CancellationToken cancellationToken)
     {
         if (request.Readings == null || request.Readings.Count == 0)
             return BadRequest("At least one node reading is required.");
 
-        var rawResponse = await _claudeService.AnalyzeMultiNodeAsync(request);
+        var rawResponse = await _claudeService.AnalyzeMultiNodeAsync(request, cancellationToken);
 
         try
         {
