@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using TallgrassAgentApi.Models;
 using TallgrassAgentApi.Services;
 using System.Text.Json;
+using System.Threading;
 
 namespace TallgrassAgentApi.Controllers;
 
@@ -17,13 +18,13 @@ public class FlowController : ControllerBase
     }
 
     [HttpPost("analyze")]
-    public async Task<ActionResult<FlowResponse>> AnalyzeFlow([FromBody] FlowRequest request)
+    public async Task<ActionResult<FlowResponse>> AnalyzeFlow([FromBody] FlowRequest request, CancellationToken cancellationToken)
     {
         var variance = request.ExpectedFlowRate != 0
             ? ((request.FlowRate - request.ExpectedFlowRate) / request.ExpectedFlowRate) * 100
             : 0;
 
-        var rawResponse = await _claudeService.AnalyzeFlowAsync(request);
+        var rawResponse = await _claudeService.AnalyzeFlowAsync(request, cancellationToken);
 
         try
         {
