@@ -6,7 +6,7 @@ namespace TallgrassAgentApi.Tests;
 
 public class FakeClaudeService : IClaudeService
 {
-    public Task<string> AnalyzeAlarmAsync(AlarmRequest alarm)
+    public Task<string> AnalyzeAlarmAsync(AlarmRequest alarm, CancellationToken ct = default)
     {
         var response = new
         {
@@ -19,7 +19,7 @@ public class FakeClaudeService : IClaudeService
         return Task.FromResult(JsonSerializer.Serialize(response));
     }
 
-    public Task<string> AnalyzeFlowAsync(FlowRequest flow)
+    public Task<string> AnalyzeFlowAsync(FlowRequest flow, CancellationToken ct = default)
     {
         var variance = flow.ExpectedFlowRate != 0
             ? ((flow.FlowRate - flow.ExpectedFlowRate) / flow.ExpectedFlowRate) * 100
@@ -38,7 +38,7 @@ public class FakeClaudeService : IClaudeService
         return Task.FromResult(JsonSerializer.Serialize(response));
     }
 
-    public Task<string> AnalyzeMultiNodeAsync(MultiNodeRequest request)
+    public Task<string> AnalyzeMultiNodeAsync(MultiNodeRequest request, CancellationToken ct = default)
     {
         var criticalNodes = request.Readings
             .Where(r => r.Status == "CRITICAL")
