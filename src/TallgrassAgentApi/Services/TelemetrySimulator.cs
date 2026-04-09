@@ -54,9 +54,9 @@ public class TelemetrySimulator : BackgroundService
                 var pick = _rng.Next(3);
                 TelemetryEvent evt = pick switch
                 {
-                    0 => await GenerateAlarmEventAsync(claude),
-                    1 => await GenerateFlowEventAsync(claude),
-                    _ => await GenerateMultiNodeEventAsync(claude)
+                    0 => await GenerateAlarmEventAsync(claude, stoppingToken),
+                    1 => await GenerateFlowEventAsync(claude, stoppingToken),
+                    _ => await GenerateMultiNodeEventAsync(claude, stoppingToken)
                 };
 
                 await _channel.Writer.WriteAsync(evt, stoppingToken);
@@ -73,7 +73,7 @@ public class TelemetrySimulator : BackgroundService
     }
 
     // ── Alarm ────────────────────────────────────────────────────────────────
-    private async Task<TelemetryEvent> GenerateAlarmEventAsync(IClaudeService _claude)
+    private async Task<TelemetryEvent> GenerateAlarmEventAsync(IClaudeService _claude, CancellationToken ct = default)
     {
         var nodeId    = Pick(NodeIds);
         var alarmType = Pick(AlarmTypes);
@@ -91,7 +91,7 @@ public class TelemetrySimulator : BackgroundService
             Timestamp    = DateTime.UtcNow
         };
 
-        var raw      = await _claude.AnalyzeAlarmAsync(request);
+        var raw      = await _claude.AnalyzeAlarmAsync(request, ct);
         var response = ParseOrDefault<AlarmResponse>(raw);
 
         return new TelemetryEvent
@@ -109,7 +109,7 @@ public class TelemetrySimulator : BackgroundService
     }
 
     // ── Flow ─────────────────────────────────────────────────────────────────
-    private async Task<TelemetryEvent> GenerateFlowEventAsync(IClaudeService _claude)
+    private async Task<TelemetryEvent> GenerateFlowEventAsync(IClaudeService _claude, CancellationToken ct = default)
     {
         var nodeId  = Pick(NodeIds);
         var segment = Pick(Segments);
@@ -127,7 +127,7 @@ public class TelemetrySimulator : BackgroundService
             Timestamp        = DateTime.UtcNow
         };
 
-        var raw      = await _claude.AnalyzeFlowAsync(request);
+        var raw      = await _claude.AnalyzeFlowAsync(request, ct);
         var response = ParseOrDefault<FlowResponse>(raw);
 
         return new TelemetryEvent
@@ -146,7 +146,7 @@ public class TelemetrySimulator : BackgroundService
     }
 
     // ── Multi-node ────────────────────────────────────────────────────────────
-    private async Task<TelemetryEvent> GenerateMultiNodeEventAsync(IClaudeService _claude)
+    private async Task<TelemetryEvent> GenerateMultiNodeEventAsync(IClaudeService _claude, CancellationToken ct = default)
     {
         var regionId = $"REGION-{(char)('A' + _rng.Next(4))}";
         int count    = _rng.Next(4, 9);
@@ -169,7 +169,7 @@ public class TelemetrySimulator : BackgroundService
         }).ToList();
 
         var request  = new MultiNodeRequest { RegionId = regionId, Readings = readings };
-        var raw      = await _claude.AnalyzeMultiNodeAsync(request);
+        var raw      = await _claude.AnalyzeMultiNodeAsync(request, ct);
         var response = ParseOrDefault<MultiNodeResponse>(raw);
 
         return new TelemetryEvent
