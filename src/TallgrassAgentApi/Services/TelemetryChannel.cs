@@ -13,7 +13,7 @@ public class TelemetryChannel
     private readonly Channel<TelemetryEvent> _channel =
         Channel.CreateUnbounded<TelemetryEvent>(new UnboundedChannelOptions
         {
-            SingleWriter = true,   // only TelemetrySimulator writes
+            SingleWriter = false,  // writer is publicly exposed and may be used by multiple publishers
             SingleReader = false   // multiple SSE clients may read concurrently
         });
 
