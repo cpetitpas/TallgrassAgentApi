@@ -39,26 +39,32 @@ public class StreamController : ControllerBase
 
         _logger.LogInformation("SSE client connected from {IP}", HttpContext.Connection.RemoteIpAddress);
 
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         using var heartbeatTimer = new PeriodicTimer(TimeSpan.FromSeconds(15));
-        var heartbeatTask = HeartbeatAsync(heartbeatTimer, cancellationToken);
+        var heartbeatTask = HeartbeatAsync(heartbeatTimer, cts.Token);
 
         try
         {
-            await foreach (var evt in _channel.Reader.ReadAllAsync(cancellationToken))
+            await foreach (var evt in _channel.Reader.ReadAllAsync(cts.Token))
             {
                 var json = JsonSerializer.Serialize(evt, JsonOpts);
                 var payload = $"event: telemetry\ndata: {json}\n\n";
                 var bytes = Encoding.UTF8.GetBytes(payload);
-                await Response.Body.WriteAsync(bytes, cancellationToken);
-                await Response.Body.FlushAsync(cancellationToken);
+                await Response.Body.WriteAsync(bytes, cts.Token);
+                await Response.Body.FlushAsync(cts.Token);
             }
         }
         catch (OperationCanceledException)
         {
             // Client disconnected — normal shutdown
         }
+        catch (IOException)
+        {
+            // Client disconnected mid-write
+        }
         finally
         {
+            await cts.CancelAsync();
             _logger.LogInformation("SSE client disconnected.");
         }
 
@@ -77,5 +83,6 @@ public class StreamController : ControllerBase
             }
         }
         catch (OperationCanceledException) { }
+        catch (IOException) { }
     }
 }
