@@ -10,6 +10,7 @@ public class TelemetrySimulator : BackgroundService
     private readonly TelemetryChannel _channel;
     private readonly NodeHealthRegistry _registry;
     private readonly ILogger<TelemetrySimulator> _logger;
+    private readonly TimeSpan _simulatedHeartbeatInterval;
     private readonly Random _rng = new();
 
     private static readonly JsonSerializerOptions JsonOpts = new()
@@ -36,17 +37,25 @@ public class TelemetrySimulator : BackgroundService
         IServiceScopeFactory scopeFactory,
         TelemetryChannel channel,
         NodeHealthRegistry registry,
+        IConfiguration config,
         ILogger<TelemetrySimulator> logger)
     {
         _scopeFactory = scopeFactory;
         _channel      = channel;
         _registry     = registry;
         _logger       = logger;
+
+        var heartbeatWindowSeconds = config.GetValue("NodeHealth:HeartbeatIntervalSeconds", 30);
+        // Keep simulator heartbeats ahead of the sweep window to avoid false stale transitions.
+        _simulatedHeartbeatInterval = TimeSpan.FromSeconds(Math.Max(5, heartbeatWindowSeconds / 2));
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("TelemetrySimulator started.");
+        _logger.LogInformation(
+            "TelemetrySimulator heartbeat cadence: {IntervalSeconds}s (derived from NodeHealth heartbeat window)",
+            _simulatedHeartbeatInterval.TotalSeconds);
 
         // Run telemetry and heartbeat loops concurrently
         await Task.WhenAll(
@@ -70,9 +79,9 @@ public class TelemetrySimulator : BackgroundService
 
                 TelemetryEvent evt = _rng.Next(3) switch
                 {
-                    0 => await GenerateAlarmEventAsync(claude),
-                    1 => await GenerateFlowEventAsync(claude),
-                    _ => await GenerateMultiNodeEventAsync(claude)
+                    0 => await GenerateAlarmEventAsync(claude, ct),
+                    1 => await GenerateFlowEventAsync(claude, ct),
+                    _ => await GenerateMultiNodeEventAsync(claude, ct)
                 };
 
                 await _channel.Writer.WriteAsync(evt, ct);
@@ -84,7 +93,7 @@ public class TelemetrySimulator : BackgroundService
     }
 
     // ── Heartbeat loop ────────────────────────────────────────────────────────
-    // Fires every 20 seconds. Each node sends a heartbeat independently on a
+    // Fires at half the NodeHealth heartbeat window. Each node sends a heartbeat independently on a
     // slight jitter so they don't all land at the same instant.
     private async Task HeartbeatLoopAsync(CancellationToken ct)
     {
@@ -92,7 +101,7 @@ public class TelemetrySimulator : BackgroundService
         // API is fully ready and the telemetry loop has already started.
         await Task.Delay(TimeSpan.FromSeconds(5), ct);
 
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(120));
+        using var timer = new PeriodicTimer(_simulatedHeartbeatInterval);
 
         while (await timer.WaitForNextTickAsync(ct))
         {
@@ -137,7 +146,7 @@ public class TelemetrySimulator : BackgroundService
     }
 
     // ── Alarm ─────────────────────────────────────────────────────────────────
-    private async Task<TelemetryEvent> GenerateAlarmEventAsync(IClaudeService _claude)
+    private async Task<TelemetryEvent> GenerateAlarmEventAsync(IClaudeService _claude, CancellationToken ct)
     {
         var nodeId    = Pick(NodeIds);
         var alarmType = Pick(AlarmTypes);
@@ -155,7 +164,7 @@ public class TelemetrySimulator : BackgroundService
             Timestamp    = DateTime.UtcNow
         };
 
-        var raw      = await _claude.AnalyzeAlarmAsync(request);
+        var raw      = await _claude.AnalyzeAlarmAsync(request, ct);
         var response = ParseOrDefault<AlarmResponse>(raw);
 
         return new TelemetryEvent
@@ -173,7 +182,7 @@ public class TelemetrySimulator : BackgroundService
     }
 
     // ── Flow ──────────────────────────────────────────────────────────────────
-    private async Task<TelemetryEvent> GenerateFlowEventAsync(IClaudeService _claude)
+    private async Task<TelemetryEvent> GenerateFlowEventAsync(IClaudeService _claude, CancellationToken ct)
     {
         var nodeId  = Pick(NodeIds);
         var segment = NodeSegments[nodeId];
@@ -191,7 +200,7 @@ public class TelemetrySimulator : BackgroundService
             Timestamp        = DateTime.UtcNow
         };
 
-        var raw      = await _claude.AnalyzeFlowAsync(request);
+        var raw      = await _claude.AnalyzeFlowAsync(request, ct);
         var response = ParseOrDefault<FlowResponse>(raw);
 
         return new TelemetryEvent
@@ -210,7 +219,7 @@ public class TelemetrySimulator : BackgroundService
     }
 
     // ── Multi-node ────────────────────────────────────────────────────────────
-    private async Task<TelemetryEvent> GenerateMultiNodeEventAsync(IClaudeService _claude)
+    private async Task<TelemetryEvent> GenerateMultiNodeEventAsync(IClaudeService _claude, CancellationToken ct)
     {
         var regionId = $"REGION-{(char)('A' + _rng.Next(4))}";
         int count    = _rng.Next(4, 9);
@@ -233,7 +242,7 @@ public class TelemetrySimulator : BackgroundService
         }).ToList();
 
         var request  = new MultiNodeRequest { RegionId = regionId, Readings = readings };
-        var raw      = await _claude.AnalyzeMultiNodeAsync(request);
+        var raw      = await _claude.AnalyzeMultiNodeAsync(request, ct);
         var response = ParseOrDefault<MultiNodeResponse>(raw);
 
         return new TelemetryEvent
