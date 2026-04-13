@@ -11,6 +11,16 @@ builder.Services.AddScoped<IClaudeService, ClaudeService>();  // our custom Clau
 builder.Services.AddSingleton<TelemetryChannel>();
 builder.Services.AddHostedService<TelemetrySimulator>();
 
+// --- Node health ---
+builder.Services.AddSingleton<NodeHealthRegistry>();
+builder.Services.AddHostedService<NodeHealthSweep>();
+
+// INodeClient: swap SimulatedNodeClient for HttpNodeClient in production
+if (builder.Environment.IsDevelopment())
+    builder.Services.AddScoped<INodeClient, SimulatedNodeClient>();
+else
+    builder.Services.AddScoped<INodeClient, HttpNodeClient>();
+
 // Swagger gives you a browser UI to test your endpoints
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

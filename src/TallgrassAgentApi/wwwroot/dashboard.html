@@ -29,6 +29,7 @@
     --degraded:   #ffcc00;
     --critical:   #ff4444;
     --unknown:    #8fa8b8;
+    --unknown-dim:#1a3050;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -71,57 +72,19 @@
     z-index: 100;
   }
 
-  .logo {
-    display: flex;
-    align-items: baseline;
-    gap: 12px;
-  }
-  .logo-mark {
-    font-size: 26px;
-    font-weight: 900;
-    letter-spacing: 4px;
-    text-transform: uppercase;
-    color: var(--accent);
-  }
-  .logo-sub {
-    font-size: 13px;
-    letter-spacing: 4px;
-    text-transform: uppercase;
-    color: var(--dim);
-    font-weight: 300;
-  }
+  .logo { display: flex; align-items: baseline; gap: 12px; }
+  .logo-mark { font-size: 26px; font-weight: 900; letter-spacing: 4px; text-transform: uppercase; color: var(--accent); }
+  .logo-sub  { font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: var(--dim); font-weight: 300; }
 
-  .header-right {
-    display: flex;
-    align-items: center;
-    gap: 32px;
-  }
+  .header-right { display: flex; align-items: center; gap: 32px; }
 
-  .conn-indicator {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 14px;
-    letter-spacing: 2px;
-    color: var(--dim);
-  }
-  .conn-dot {
-    width: 10px; height: 10px;
-    border-radius: 50%;
-    background: var(--dim);
-    transition: background .3s;
-  }
-  .conn-dot.live { background: var(--low); box-shadow: 0 0 10px var(--low); animation: pulse-dot 2s infinite; }
+  .conn-indicator { display: flex; align-items: center; gap: 10px; font-family: 'Share Tech Mono', monospace; font-size: 14px; letter-spacing: 2px; color: var(--dim); }
+  .conn-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--dim); transition: background .3s; }
+  .conn-dot.live  { background: var(--low);  box-shadow: 0 0 10px var(--low);  animation: pulse-dot 2s infinite; }
   .conn-dot.error { background: var(--high); box-shadow: 0 0 10px var(--high); }
   @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.4} }
 
-  .clock {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 15px;
-    color: var(--accent);
-    letter-spacing: 2px;
-  }
+  .clock { font-family: 'Share Tech Mono', monospace; font-size: 15px; color: var(--accent); letter-spacing: 2px; }
 
   /* ── Stats bar ───────────────────────────────── */
   .stats-bar {
@@ -130,41 +93,81 @@
     border-bottom: 2px solid var(--border);
     background: var(--panel);
   }
-
-  .stat {
-    padding: 16px 24px;
-    border-right: 1px solid var(--border);
-  }
+  .stat { padding: 16px 24px; border-right: 1px solid var(--border); }
   .stat:last-child { border-right: none; }
+  .stat-label { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--dim); margin-bottom: 6px; font-weight: 600; }
+  .stat-value { font-family: 'Share Tech Mono', monospace; font-size: 32px; line-height: 1; color: var(--text); transition: color .3s; }
+  .stat-value.flash { animation: flash-val .4s; }
+  @keyframes flash-val { 0%,100%{opacity:1} 50%{opacity:.2} }
+  #stat-high  .stat-value { color: var(--high); }
+  #stat-med   .stat-value { color: var(--med); }
+  #stat-low   .stat-value { color: var(--low); }
+  #stat-total .stat-value { color: var(--accent); }
 
-  .stat-label {
-    font-size: 11px;
+  /* ── Tab bar ─────────────────────────────────── */
+  .tab-bar {
+    display: flex;
+    align-items: stretch;
+    background: var(--panel);
+    border-bottom: 2px solid var(--border);
+    padding: 0 24px;
+    gap: 4px;
+  }
+
+  .tab-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 20px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
     letter-spacing: 3px;
     text-transform: uppercase;
     color: var(--dim);
-    margin-bottom: 6px;
-    font-weight: 600;
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    transition: all .2s;
+    margin-bottom: -2px;
   }
-  .stat-value {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 32px;
-    line-height: 1;
-    color: var(--text);
-    transition: color .3s;
+  .tab-btn:hover  { color: var(--text); }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .tab-badge {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0;
+    background: var(--high);
+    color: #fff;
+    animation: badge-pulse 2s infinite;
   }
-  .stat-value.flash { animation: flash-val .4s; }
-  @keyframes flash-val { 0%,100%{opacity:1} 50%{opacity:.2} }
+  .tab-badge.amber   { background: var(--med); color: #000; }
+  .tab-badge.visible { display: flex; }
+  @keyframes badge-pulse { 0%,100%{opacity:1} 50%{opacity:.55} }
 
-  #stat-high .stat-value { color: var(--high); }
-  #stat-med  .stat-value { color: var(--med); }
-  #stat-low  .stat-value { color: var(--low); }
-  #stat-total .stat-value { color: var(--accent); }
+  /* ── Tab content ─────────────────────────────── */
+  .tab-content { display: none; }
+  .tab-content.active { display: grid; }
 
-  /* ── Main layout ─────────────────────────────── */
-  main {
-    display: grid;
+  #tab-feed  {
     grid-template-columns: 1fr 380px;
-    height: calc(100vh - 68px - 76px);
+    height: calc(100vh - 68px - 76px - 46px);
+  }
+  #tab-nodes {
+    grid-template-columns: 1fr;
+    height: calc(100vh - 68px - 76px - 46px);
+    overflow-y: auto;
+    padding: 20px 24px;
   }
 
   /* ── Feed ────────────────────────────────────── */
@@ -188,31 +191,17 @@
     background: var(--panel);
     z-index: 10;
   }
-  .feed-title {
-    font-size: 12px;
-    letter-spacing: 4px;
-    text-transform: uppercase;
-    color: var(--dim);
-    font-weight: 600;
-  }
+  .feed-title { font-size: 12px; letter-spacing: 4px; text-transform: uppercase; color: var(--dim); font-weight: 600; }
 
-  .filter-btns {
-    display: flex;
-    gap: 8px;
-  }
+  .filter-btns { display: flex; gap: 8px; }
   .filter-btn {
     padding: 5px 12px;
     font-family: 'Barlow Condensed', sans-serif;
-    font-size: 12px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--dim);
-    cursor: pointer;
-    transition: all .2s;
+    font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
+    border: 1px solid var(--border); background: transparent; color: var(--dim);
+    cursor: pointer; transition: all .2s;
   }
-  .filter-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .filter-btn:hover  { border-color: var(--accent); color: var(--accent); }
   .filter-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
 
   /* ── Event card ──────────────────────────────── */
@@ -224,266 +213,243 @@
     transition: background .15s;
   }
   .event-card:hover { background: rgba(255,255,255,.03); }
-
-  @keyframes slide-in {
-    from { transform: translateX(-12px); opacity: 0; }
-    to   { transform: translateX(0);    opacity: 1; }
-  }
+  @keyframes slide-in { from{transform:translateX(-12px);opacity:0} to{transform:translateX(0);opacity:1} }
 
   .severity-stripe { background: var(--dim); }
   .event-card[data-sev="HIGH"]     .severity-stripe,
   .event-card[data-sev="CRITICAL"] .severity-stripe { background: var(--high); box-shadow: 3px 0 10px var(--high); }
   .event-card[data-sev="MEDIUM"]   .severity-stripe,
-  .event-card[data-sev="DEGRADED"] .severity-stripe { background: var(--med); box-shadow: 3px 0 10px var(--med); }
+  .event-card[data-sev="DEGRADED"] .severity-stripe { background: var(--med);  box-shadow: 3px 0 10px var(--med); }
   .event-card[data-sev="LOW"]      .severity-stripe,
-  .event-card[data-sev="NORMAL"]   .severity-stripe { background: var(--low); box-shadow: 3px 0 10px var(--low); }
+  .event-card[data-sev="NORMAL"]   .severity-stripe { background: var(--low);  box-shadow: 3px 0 10px var(--low); }
+  /* Health/Ping events — same colour coding but muted stripe */
+  .event-card[data-type="HEALTH"] .severity-stripe,
+  .event-card[data-type="PING"]   .severity-stripe { opacity: .45; }
 
-  .event-body {
-    padding: 16px 22px;
-  }
+  .event-body { padding: 16px 22px; }
+  .event-meta { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+  .event-id   { font-family: 'Share Tech Mono', monospace; font-size: 13px; color: var(--dim); }
+  .event-node { font-size: 14px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--text); }
 
-  .event-meta {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 8px;
-    flex-wrap: wrap;
-  }
-
-  .event-id {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 13px;
-    color: var(--dim);
-  }
-  .event-node {
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: var(--text);
-  }
   .event-type-badge {
-    font-size: 11px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    padding: 3px 9px;
-    border: 1px solid;
-    border-radius: 3px;
+    font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+    padding: 3px 9px; border: 1px solid; border-radius: 3px;
   }
   .type-ALARM     { color: #ff9944; border-color: #ff9944; background: rgba(255,153,68,.12); }
   .type-FLOW      { color: #44ccff; border-color: #44ccff; background: rgba(68,204,255,.12); }
   .type-MULTINODE { color: #e088ff; border-color: #e088ff; background: rgba(224,136,255,.12); }
+  .type-HEALTH    { color: #7a8fa0; border-color: #7a8fa0; background: rgba(122,143,160,.10); }
+  .type-PING      { color: #7a8fa0; border-color: #7a8fa0; background: rgba(122,143,160,.10); }
 
   .sev-badge {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    padding: 3px 9px;
-    border-radius: 3px;
-    margin-left: auto;
+    font-family: 'Share Tech Mono', monospace; font-size: 12px; font-weight: 700;
+    letter-spacing: 2px; padding: 3px 9px; border-radius: 3px; margin-left: auto;
   }
-  .sev-HIGH,.sev-CRITICAL { background: var(--high-dim); color: var(--high); }
-  .sev-MEDIUM,.sev-DEGRADED { background: var(--med-dim); color: var(--med); }
-  .sev-LOW,.sev-NORMAL { background: var(--low-dim); color: var(--low); }
-  .sev-UNKNOWN { background: #1a3050; color: var(--unknown); }
+  .sev-HIGH,.sev-CRITICAL  { background: var(--high-dim); color: var(--high); }
+  .sev-MEDIUM,.sev-DEGRADED{ background: var(--med-dim);  color: var(--med); }
+  .sev-LOW,.sev-NORMAL,.sev-ONLINE { background: var(--low-dim); color: var(--low); }
+  .sev-UNKNOWN,.sev-OFFLINE{ background: var(--unknown-dim); color: var(--unknown); }
 
-  .event-analysis {
-    font-size: 15px;
-    line-height: 1.6;
-    color: var(--text);
-    margin-bottom: 8px;
-    font-weight: 400;
-  }
-  .event-action {
-    font-size: 13px;
-    color: var(--dim);
-    letter-spacing: .5px;
-  }
+  .event-analysis { font-size: 15px; line-height: 1.6; color: var(--text); margin-bottom: 8px; font-weight: 400; }
+  .event-action   { font-size: 13px; color: var(--dim); letter-spacing: .5px; }
   .event-action span { color: var(--accent); font-weight: 600; }
-
-  .event-metrics {
-    display: flex;
-    gap: 18px;
-    margin-top: 10px;
-    flex-wrap: wrap;
-  }
-  .metric {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 13px;
-    color: var(--dim);
-  }
+  .event-metrics  { display: flex; gap: 18px; margin-top: 10px; flex-wrap: wrap; }
+  .metric { font-family: 'Share Tech Mono', monospace; font-size: 13px; color: var(--dim); }
   .metric b { color: var(--text); font-weight: 600; }
-
-  .event-time {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 12px;
-    color: var(--dim);
-    margin-top: 8px;
-  }
+  .event-time { font-family: 'Share Tech Mono', monospace; font-size: 12px; color: var(--dim); margin-top: 8px; }
 
   /* ── Sidebar ─────────────────────────────────── */
-  .sidebar {
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-  }
+  .sidebar { overflow-y: auto; display: flex; flex-direction: column; }
   .sidebar::-webkit-scrollbar { width: 6px; }
   .sidebar::-webkit-scrollbar-thumb { background: var(--border); }
 
   .panel-title {
     padding: 14px 18px;
-    font-size: 11px;
-    letter-spacing: 4px;
-    text-transform: uppercase;
-    color: var(--dim);
+    font-size: 11px; letter-spacing: 4px; text-transform: uppercase; color: var(--dim); font-weight: 600;
     border-bottom: 1px solid var(--border);
     background: var(--panel);
-    position: sticky;
-    top: 0;
-    z-index: 5;
-    font-weight: 600;
+    position: sticky; top: 0; z-index: 5;
   }
 
-  /* Node grid */
-  #node-grid {
+  /* Node health summary strip */
+  #node-summary-strip {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1px;
     background: var(--border);
     border-bottom: 1px solid var(--border);
   }
-  .node-cell {
-    background: var(--panel);
-    padding: 12px 14px;
-    transition: background .3s;
-  }
-  .node-cell.flash-node { animation: flash-node .5s; }
-  @keyframes flash-node { 0%,100%{background:var(--panel)} 50%{background:var(--accent-dim)} }
-
-  .node-id-label {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 12px;
-    color: var(--dim);
-    margin-bottom: 4px;
-  }
-  .node-sev-indicator {
-    height: 4px;
-    border-radius: 1px;
-    background: var(--dim);
-    margin-bottom: 5px;
-    transition: background .5s;
-  }
-  .ns-HIGH,.ns-CRITICAL { background: var(--high); box-shadow: 0 0 8px var(--high); }
-  .ns-MEDIUM,.ns-DEGRADED { background: var(--med); box-shadow: 0 0 8px var(--med); }
-  .ns-LOW,.ns-NORMAL { background: var(--low); box-shadow: 0 0 8px var(--low); }
-
-  .node-last-val {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 15px;
-    color: var(--text);
-    font-weight: 600;
-  }
-  .node-last-val span { font-size: 11px; color: var(--dim); margin-left: 3px; }
+  .summary-cell { background: var(--panel); padding: 14px 16px; }
+  .summary-cell-label { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--dim); margin-bottom: 5px; font-weight: 600; }
+  .summary-cell-value { font-family: 'Share Tech Mono', monospace; font-size: 26px; line-height: 1; }
+  .sc-total    .summary-cell-value { color: var(--accent); }
+  .sc-healthy  .summary-cell-value { color: var(--low); }
+  .sc-degraded .summary-cell-value { color: var(--med); }
+  .sc-offline  .summary-cell-value { color: var(--high); }
 
   /* Activity chart */
-  #activity-wrap {
-    padding: 14px;
-    border-bottom: 1px solid var(--border);
-  }
-  .chart-label {
-    font-size: 11px;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    color: var(--dim);
-    margin-bottom: 10px;
-    font-weight: 600;
-  }
-  #activity-bars {
-    display: flex;
-    align-items: flex-end;
-    gap: 4px;
-    height: 68px;
-  }
-  .bar-col {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 1px;
-    height: 100%;
-    justify-content: flex-end;
-  }
-  .bar-seg {
-    min-height: 2px;
-    border-radius: 1px 1px 0 0;
-    transition: height .4s ease;
-  }
+  #activity-wrap { padding: 14px; border-bottom: 1px solid var(--border); }
+  .chart-label { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--dim); margin-bottom: 10px; font-weight: 600; }
+  #activity-bars { display: flex; align-items: flex-end; gap: 4px; height: 68px; }
+  .bar-col { flex: 1; display: flex; flex-direction: column; align-items: stretch; gap: 1px; height: 100%; justify-content: flex-end; }
+  .bar-seg { min-height: 2px; border-radius: 1px 1px 0 0; transition: height .4s ease; }
   .bar-high { background: var(--high); }
   .bar-med  { background: var(--med); }
   .bar-low  { background: var(--low); }
 
-  /* Recent actions panel */
-  #actions-list {
-    padding: 0;
-  }
-  .action-item {
-    padding: 10px 18px;
-    border-bottom: 1px solid var(--grid);
-    animation: fade-in .3s;
-  }
+  /* Recent actions */
+  #actions-list { padding: 0; }
+  .action-item { padding: 10px 18px; border-bottom: 1px solid var(--grid); animation: fade-in .3s; }
   @keyframes fade-in { from{opacity:0} to{opacity:1} }
+  .action-node { font-family: 'Share Tech Mono', monospace; font-size: 12px; color: var(--accent); margin-bottom: 3px; font-weight: 600; }
+  .action-text { font-size: 13px; line-height: 1.5; color: var(--text); }
 
-  .action-node {
+  /* ── Tab 2: Node health ──────────────────────── */
+  .nodes-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .nodes-toolbar-title { font-size: 12px; letter-spacing: 4px; text-transform: uppercase; color: var(--dim); font-weight: 600; }
+  .nodes-toolbar-right { display: flex; gap: 8px; }
+
+  .manual-ping-wrap {
+    display: flex;
+    gap: 8px;
+    margin-left: 12px;
+  }
+  .manual-ping-input {
+    width: 140px;
+    padding: 5px 10px;
     font-family: 'Share Tech Mono', monospace;
     font-size: 12px;
-    color: var(--accent);
-    margin-bottom: 3px;
-    font-weight: 600;
-  }
-  .action-text {
-    font-size: 13px;
-    line-height: 1.5;
-    color: var(--text);
-  }
-
-  /* ── Pause btn ───────────────────────────────── */
-  #pause-btn {
-    position: fixed;
-    bottom: 28px;
-    right: 28px;
-    padding: 12px 26px;
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: 3px;
+    letter-spacing: 1px;
     text-transform: uppercase;
+    border: 1px solid var(--border);
     background: var(--panel);
-    border: 2px solid var(--accent);
-    color: var(--accent);
-    cursor: pointer;
-    z-index: 200;
-    transition: all .2s;
+    color: var(--text);
+    outline: none;
   }
-  #pause-btn:hover { background: var(--accent-dim); }
-  #pause-btn.paused { border-color: var(--med); color: var(--med); }
+  .manual-ping-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent-dim) inset;
+  }
 
-  /* ── Empty state ─────────────────────────────── */
-  #empty-state {
-    padding: 80px 32px;
-    text-align: center;
-    color: var(--dim);
+  .health-filter-btn {
+    padding: 5px 14px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
+    border: 1px solid var(--border); background: transparent; color: var(--dim);
+    cursor: pointer; transition: all .2s;
   }
+  .health-filter-btn:hover  { border-color: var(--accent); color: var(--accent); }
+  .health-filter-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+
+  #node-health-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+    gap: 1px;
+    background: var(--border);
+  }
+
+  .node-health-card {
+    background: var(--panel);
+    padding: 16px 18px;
+    transition: background .2s;
+    animation: fade-in .3s;
+  }
+  .node-health-card:hover { background: #141c26; }
+
+  .nhc-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .nhc-id { font-family: 'Share Tech Mono', monospace; font-size: 14px; font-weight: 700; letter-spacing: 2px; color: var(--text); }
+
+  .nhc-state-badge {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; letter-spacing: 2px; font-weight: 700;
+    padding: 3px 9px; border-radius: 3px;
+  }
+  .hs-HEALTHY  { background: var(--low-dim);     color: var(--low); }
+  .hs-DEGRADED { background: var(--med-dim);     color: var(--med); }
+  .hs-OFFLINE  { background: var(--high-dim);    color: var(--high); }
+  .hs-UNKNOWN  { background: var(--unknown-dim); color: var(--unknown); }
+
+  .nhc-state-bar {
+    height: 3px; border-radius: 1px; margin-bottom: 14px;
+    transition: background .5s, box-shadow .5s;
+  }
+  .nhc-state-bar.hs-HEALTHY  { background: var(--low);     box-shadow: 0 0 8px var(--low); }
+  .nhc-state-bar.hs-DEGRADED { background: var(--med);     box-shadow: 0 0 8px var(--med); }
+  .nhc-state-bar.hs-OFFLINE  { background: var(--high);    box-shadow: 0 0 8px var(--high); animation: offline-flash 1.5s infinite; }
+  .nhc-state-bar.hs-UNKNOWN  { background: var(--unknown); }
+  @keyframes offline-flash { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+  .nhc-metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 14px;
+    margin-bottom: 14px;
+  }
+  .nhc-metric-label { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--dim); margin-bottom: 2px; font-weight: 600; }
+  .nhc-metric-value { font-family: 'Share Tech Mono', monospace; font-size: 13px; color: var(--text); }
+  .nhc-metric-value.stale   { color: var(--med); }
+  .nhc-metric-value.missing { color: var(--dim); }
+
+  .nhc-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .nhc-segment { font-size: 12px; color: var(--dim); letter-spacing: 1px; }
+
+  .ping-btn {
+    padding: 5px 14px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+    border: 1px solid var(--accent-dim); background: transparent; color: var(--accent);
+    cursor: pointer; transition: all .2s;
+  }
+  .ping-btn:hover:not(:disabled) { background: var(--accent-dim); border-color: var(--accent); }
+  .ping-btn:disabled { opacity: .35; cursor: default; }
+  .ping-btn.pinging  { border-color: var(--med); color: var(--med); animation: ping-pulse .9s infinite; }
+  @keyframes ping-pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  /* Empty states */
+  #nodes-empty {
+    grid-column: 1 / -1; padding: 80px; text-align: center; color: var(--dim);
+  }
+  #nodes-empty .big { font-size: 48px; opacity: .25; margin-bottom: 14px; }
+  #nodes-empty p { font-size: 13px; letter-spacing: 3px; text-transform: uppercase; }
+
+  #empty-state { padding: 80px 32px; text-align: center; color: var(--dim); }
   #empty-state .big { font-size: 56px; margin-bottom: 16px; opacity: .4; }
   #empty-state p { font-size: 14px; letter-spacing: 3px; text-transform: uppercase; }
 
-  /* Scrollbar global */
+  /* ── Pause btn ───────────────────────────────── */
+  #pause-btn {
+    position: fixed; bottom: 28px; right: 28px;
+    padding: 12px 26px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 14px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
+    background: var(--panel); border: 2px solid var(--accent); color: var(--accent);
+    cursor: pointer; z-index: 200; transition: all .2s;
+  }
+  #pause-btn:hover  { background: var(--accent-dim); }
+  #pause-btn.paused { border-color: var(--med); color: var(--med); }
+
   * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
 </style>
 </head>
 <body>
 
+<!-- ── Header ─────────────────────────────────────────────────────────────── -->
 <header>
   <div class="logo">
     <div class="logo-mark">Tallgrass</div>
@@ -498,6 +464,7 @@
   </div>
 </header>
 
+<!-- ── Stats bar ──────────────────────────────────────────────────────────── -->
 <div class="stats-bar">
   <div class="stat" id="stat-total">
     <div class="stat-label">Events Received</div>
@@ -521,8 +488,18 @@
   </div>
 </div>
 
-<main>
-  <!-- Feed -->
+<!-- ── Tab bar ────────────────────────────────────────────────────────────── -->
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="tab-feed">◈ Live Feed</button>
+  <button class="tab-btn" data-tab="tab-nodes">
+    ⬡ Node Health
+    <span class="tab-badge" id="health-badge">0</span>
+  </button>
+</div>
+
+<!-- ── Tab 1: Live Feed ───────────────────────────────────────────────────── -->
+<div class="tab-content active" id="tab-feed">
+
   <div id="feed">
     <div class="feed-header">
       <div class="feed-title">Event Stream</div>
@@ -531,6 +508,7 @@
         <button class="filter-btn" data-filter="ALARM">ALARM</button>
         <button class="filter-btn" data-filter="FLOW">FLOW</button>
         <button class="filter-btn" data-filter="MULTINODE">MULTI</button>
+        <button class="filter-btn" data-filter="HEALTH">HEALTH</button>
         <button class="filter-btn" data-filter="HIGH">⬤ HIGH</button>
       </div>
     </div>
@@ -542,10 +520,26 @@
     </div>
   </div>
 
-  <!-- Sidebar -->
   <aside class="sidebar">
-    <div class="panel-title">Node Status</div>
-    <div id="node-grid"></div>
+    <div class="panel-title">Node Health Summary</div>
+    <div id="node-summary-strip">
+      <div class="summary-cell sc-total">
+        <div class="summary-cell-label">Total</div>
+        <div class="summary-cell-value" id="ns-total">0</div>
+      </div>
+      <div class="summary-cell sc-healthy">
+        <div class="summary-cell-label">Healthy</div>
+        <div class="summary-cell-value" id="ns-healthy">0</div>
+      </div>
+      <div class="summary-cell sc-degraded">
+        <div class="summary-cell-label">Degraded</div>
+        <div class="summary-cell-value" id="ns-degraded">0</div>
+      </div>
+      <div class="summary-cell sc-offline">
+        <div class="summary-cell-label">Offline</div>
+        <div class="summary-cell-value" id="ns-offline">0</div>
+      </div>
+    </div>
 
     <div id="activity-wrap">
       <div class="chart-label">60-Second Activity</div>
@@ -555,267 +549,464 @@
     <div class="panel-title">Recent Actions</div>
     <div id="actions-list"></div>
   </aside>
-</main>
+</div>
+
+<!-- ── Tab 2: Node Health ─────────────────────────────────────────────────── -->
+<div class="tab-content" id="tab-nodes">
+  <div class="nodes-toolbar">
+    <div class="nodes-toolbar-title">Node Health Registry</div>
+    <div class="nodes-toolbar-right">
+      <button class="health-filter-btn active" data-hfilter="ALL">All</button>
+      <button class="health-filter-btn" data-hfilter="HEALTHY">Healthy</button>
+      <button class="health-filter-btn" data-hfilter="DEGRADED">Degraded</button>
+      <button class="health-filter-btn" data-hfilter="OFFLINE">Offline</button>
+      <div class="manual-ping-wrap">
+        <input id="manual-ping-node" class="manual-ping-input" type="text" maxlength="32" placeholder="NODE-001" />
+        <button id="manual-ping-btn" class="ping-btn">Ping Node</button>
+      </div>
+    </div>
+  </div>
+  <div id="node-health-grid">
+    <div id="nodes-empty">
+      <div class="big">⬡</div>
+      <p>No nodes registered yet</p>
+    </div>
+  </div>
+</div>
 
 <button id="pause-btn">⏸ Pause</button>
 
-
 <script>
-  // ── State ──────────────────────────────────────────────────────────────────
-  const MAX_CARDS   = 120;
-  const MAX_ACTIONS = 20;
-  const CHART_BINS  = 20;
+// ── Constants ──────────────────────────────────────────────────────────────
+const MAX_CARDS   = 120;
+const MAX_ACTIONS = 20;
+const CHART_BINS  = 20;
 
-  let counts    = { total: 0, high: 0, med: 0, low: 0 };
-  let nodes     = {};           // nodeId → { sev, value, unit }
-  let actBins   = Array(CHART_BINS).fill(null).map(() => ({ h: 0, m: 0, l: 0 }));
-  let binTimer  = null;
-  let paused    = false;
-  let activeFilter = 'ALL';
-  let eventBuf  = [];           // buffer while paused
+// ── State ──────────────────────────────────────────────────────────────────
+let counts         = { total: 0, high: 0, med: 0, low: 0 };
+let telemetryNodes = {};   // nodeId → { sev, value, unit }
+let healthNodes    = {};   // nodeId → full health entry
+let actBins        = Array(CHART_BINS).fill(null).map(() => ({ h: 0, m: 0, l: 0 }));
+let paused         = false;
+let activeFilter   = 'ALL';
+let activeHFilter  = 'ALL';
+let eventBuf       = [];
+let pendingPings   = new Set();
 
-  // ── Clock ──────────────────────────────────────────────────────────────────
-  function tick() {
-    document.getElementById('clock').textContent =
-      new Date().toLocaleTimeString('en-US', { hour12: false });
-  }
-  tick();
-  setInterval(tick, 1000);
+// ── Clock ──────────────────────────────────────────────────────────────────
+function tick() {
+  document.getElementById('clock').textContent =
+    new Date().toLocaleTimeString('en-US', { hour12: false });
+}
+tick();
+setInterval(tick, 1000);
+setInterval(refreshRelativeTimes, 5000);
 
-  // ── Activity chart rotation ────────────────────────────────────────────────
-  function rotateBin() {
-    actBins.shift();
-    actBins.push({ h: 0, m: 0, l: 0 });
-    renderChart();
-  }
-  binTimer = setInterval(rotateBin, 3000);
+// ── Tabs ───────────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    this.classList.add('active');
+    document.getElementById(this.dataset.tab).classList.add('active');
+  });
+});
 
-  function bumpBin(sev) {
-    const cur = actBins[actBins.length - 1];
-    if (/HIGH|CRITICAL/.test(sev)) cur.h++;
-    else if (/MED|DEG/.test(sev))  cur.m++;
-    else                            cur.l++;
-    renderChart();
-  }
+// ── Activity chart ─────────────────────────────────────────────────────────
+setInterval(() => { actBins.shift(); actBins.push({ h:0, m:0, l:0 }); renderChart(); }, 3000);
 
-  function renderChart() {
-    const wrap = document.getElementById('activity-bars');
-    wrap.innerHTML = '';
-    const maxCount = Math.max(1, ...actBins.map(b => b.h + b.m + b.l));
-    actBins.forEach(b => {
-      const col = document.createElement('div');
-      col.className = 'bar-col';
-      const total = b.h + b.m + b.l;
-      if (total === 0) {
-        col.innerHTML = '<div class="bar-seg bar-low" style="height:2px;opacity:.2"></div>';
-      } else {
-        const scale = 54 / maxCount;
-        if (b.h) col.innerHTML += `<div class="bar-seg bar-high" style="height:${b.h*scale}px"></div>`;
-        if (b.m) col.innerHTML += `<div class="bar-seg bar-med"  style="height:${b.m*scale}px"></div>`;
-        if (b.l) col.innerHTML += `<div class="bar-seg bar-low"  style="height:${b.l*scale}px"></div>`;
-      }
-      wrap.appendChild(col);
-    });
-  }
+function bumpBin(sev) {
+  const cur = actBins[actBins.length - 1];
+  if (/HIGH|CRITICAL|OFFLINE/.test(sev)) cur.h++;
+  else if (/MED|DEG/.test(sev))          cur.m++;
+  else                                    cur.l++;
   renderChart();
+}
 
-  // ── Node grid ─────────────────────────────────────────────────────────────
-  function updateNode(id, sev, value, unit) {
-    nodes[id] = { sev, value, unit };
-    renderNodeGrid();
-    document.getElementById('val-nodes').textContent = Object.keys(nodes).length;
-  }
-
-  function renderNodeGrid() {
-    const grid = document.getElementById('node-grid');
-    grid.innerHTML = '';
-    Object.entries(nodes).forEach(([id, info]) => {
-      const cell = document.createElement('div');
-      cell.className = 'node-cell';
-      cell.id = `nc-${id}`;
-      const dispVal = info.value != null ? Number(info.value).toFixed(1) : '—';
-      cell.innerHTML = `
-        <div class="node-id-label">${id}</div>
-        <div class="node-sev-indicator ns-${info.sev}"></div>
-        <div class="node-last-val">${dispVal}<span>${info.unit ?? ''}</span></div>`;
-      grid.appendChild(cell);
-    });
-  }
-
-  // ── Actions list ──────────────────────────────────────────────────────────
-  function addAction(nodeId, action) {
-    const list = document.getElementById('actions-list');
-    const item = document.createElement('div');
-    item.className = 'action-item';
-    item.innerHTML = `
-      <div class="action-node">${nodeId}</div>
-      <div class="action-text">${action}</div>`;
-    list.prepend(item);
-    while (list.children.length > MAX_ACTIONS) list.lastChild.remove();
-  }
-
-  // ── Stats flash ───────────────────────────────────────────────────────────
-  function flashStat(elId) {
-    const el = document.getElementById(elId);
-    el.classList.remove('flash');
-    void el.offsetWidth;
-    el.classList.add('flash');
-  }
-
-  function updateStats(sev) {
-    counts.total++;
-    document.getElementById('val-total').textContent = counts.total;
-    flashStat('val-total');
-
-    if (/HIGH|CRITICAL/.test(sev)) {
-      counts.high++;
-      document.getElementById('val-high').textContent = counts.high;
-      flashStat('val-high');
-    } else if (/MED|DEG/.test(sev)) {
-      counts.med++;
-      document.getElementById('val-med').textContent = counts.med;
-      flashStat('val-med');
+function renderChart() {
+  const wrap = document.getElementById('activity-bars');
+  wrap.innerHTML = '';
+  const maxCount = Math.max(1, ...actBins.map(b => b.h + b.m + b.l));
+  actBins.forEach(b => {
+    const col = document.createElement('div');
+    col.className = 'bar-col';
+    const total = b.h + b.m + b.l;
+    if (total === 0) {
+      col.innerHTML = '<div class="bar-seg bar-low" style="height:2px;opacity:.2"></div>';
     } else {
-      counts.low++;
-      document.getElementById('val-low').textContent = counts.low;
-      flashStat('val-low');
+      const scale = 54 / maxCount;
+      if (b.h) col.innerHTML += `<div class="bar-seg bar-high" style="height:${b.h*scale}px"></div>`;
+      if (b.m) col.innerHTML += `<div class="bar-seg bar-med"  style="height:${b.m*scale}px"></div>`;
+      if (b.l) col.innerHTML += `<div class="bar-seg bar-low"  style="height:${b.l*scale}px"></div>`;
     }
-  }
+    wrap.appendChild(col);
+  });
+}
+renderChart();
 
-  // ── Build card ─────────────────────────────────────────────────────────────
-  function buildCard(evt) {
-    const sev = (evt.severity ?? 'UNKNOWN').toUpperCase();
-    const type = (evt.eventType ?? 'ALARM').toUpperCase();
+// ── Tab 1 sidebar: telemetry node count ───────────────────────────────────
+function updateTelemetryNode(id, sev, value, unit) {
+  telemetryNodes[id] = { sev, value, unit };
+  document.getElementById('val-nodes').textContent = Object.keys(telemetryNodes).length;
+}
 
-    // Metrics row
-    let metricsHTML = '';
-    if (evt.currentValue != null) {
-      metricsHTML += `<div class="metric">VALUE <b>${Number(evt.currentValue).toFixed(1)} ${evt.unit ?? ''}</b></div>`;
-    }
-    if (evt.threshold != null) {
-      metricsHTML += `<div class="metric">THRESHOLD <b>${evt.threshold} ${evt.unit ?? ''}</b></div>`;
-    }
-    if (evt.variancePercent != null) {
-      metricsHTML += `<div class="metric">VARIANCE <b>${Number(evt.variancePercent).toFixed(1)}%</b></div>`;
-    }
-    if (evt.totalNodes != null) {
-      metricsHTML += `<div class="metric">NODES <b>${evt.affectedNodes ?? 0}/${evt.totalNodes}</b></div>`;
-    }
+// ── Tab 1 sidebar: health summary strip ───────────────────────────────────
+function updateNodeSummary() {
+  const entries  = Object.values(healthNodes);
+  const healthy  = entries.filter(e => e.healthState === 'HEALTHY').length;
+  const degraded = entries.filter(e => e.healthState === 'DEGRADED').length;
+  const offline  = entries.filter(e => e.healthState === 'OFFLINE').length;
 
-    const ts = new Date(evt.timestamp).toLocaleTimeString('en-US', { hour12: false });
+  document.getElementById('ns-total').textContent   = entries.length;
+  document.getElementById('ns-healthy').textContent  = healthy;
+  document.getElementById('ns-degraded').textContent = degraded;
+  document.getElementById('ns-offline').textContent  = offline;
+
+  const badCount = offline + degraded;
+  const badge = document.getElementById('health-badge');
+  badge.textContent = badCount;
+  badge.classList.toggle('visible', badCount > 0);
+  badge.classList.toggle('amber',   badCount > 0 && offline === 0);
+  // amber (yellow) when degraded-only; red when any offline
+  if (badCount > 0 && offline > 0) badge.classList.remove('amber');
+}
+
+// ── Tab 2: node health upsert ──────────────────────────────────────────────
+function upsertHealthNode(patch) {
+  healthNodes[patch.nodeId] = { ...healthNodes[patch.nodeId], ...patch };
+  renderNodeHealthGrid();
+  updateNodeSummary();
+}
+
+// ── Relative time helpers ──────────────────────────────────────────────────
+function relativeTime(isoStr) {
+  if (!isoStr) return '—';
+  const diff = Math.floor((Date.now() - new Date(isoStr).getTime()) / 1000);
+  if (diff < 5)    return 'just now';
+  if (diff < 60)   return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  return `${Math.floor(diff / 3600)}h ago`;
+}
+
+function isStale(isoStr, secs = 60) {
+  if (!isoStr) return false;
+  return (Date.now() - new Date(isoStr).getTime()) / 1000 > secs;
+}
+
+function refreshRelativeTimes() {
+  if (document.getElementById('tab-nodes').classList.contains('active'))
+    renderNodeHealthGrid();
+}
+
+// ── Tab 2: render node health grid ────────────────────────────────────────
+function renderNodeHealthGrid() {
+  const grid = document.getElementById('node-health-grid');
+  const stateOrder = { OFFLINE: 0, DEGRADED: 1, UNKNOWN: 2, HEALTHY: 3 };
+
+  const entries = Object.values(healthNodes)
+    .filter(e => activeHFilter === 'ALL' || e.healthState === activeHFilter)
+    .sort((a, b) => (stateOrder[a.healthState] ?? 2) - (stateOrder[b.healthState] ?? 2));
+
+  grid.querySelectorAll('.node-health-card').forEach(c => c.remove());
+
+  const empty = document.getElementById('nodes-empty');
+  if (entries.length === 0) { empty.style.display = ''; return; }
+  empty.style.display = 'none';
+
+  entries.forEach(entry => {
+    const state      = (entry.healthState ?? 'UNKNOWN').toUpperCase();
+    const hbStale    = isStale(entry.lastHeartbeat, 90);
+    const isPinging  = pendingPings.has(entry.nodeId);
+
+    const hbVal  = relativeTime(entry.lastHeartbeat);
+    const pingVal= relativeTime(entry.lastPing);
+    const rtVal  = entry.lastRoundTripMs != null ? `${entry.lastRoundTripMs}ms` : '—';
+    const fwVal  = entry.firmwareVersion  ?? '—';
+    const sigVal = entry.signalStrength   != null ? `${Number(entry.signalStrength).toFixed(1)} dBm` : '—';
+    const batVal = entry.batteryPercent   != null ? `${Number(entry.batteryPercent).toFixed(0)}%` : '—';
 
     const card = document.createElement('div');
-    card.className = 'event-card';
-    card.dataset.sev  = sev;
-    card.dataset.type = type;
+    card.className = 'node-health-card';
+    card.id = `nhc-${entry.nodeId}`;
     card.innerHTML = `
-      <div class="severity-stripe"></div>
-      <div class="event-body">
-        <div class="event-meta">
-          <span class="event-id">#${evt.eventId ?? '——'}</span>
-          <span class="event-node">${evt.nodeId}</span>
-          <span class="event-type-badge type-${type}">${type}</span>
-          <span class="sev-badge sev-${sev}">${sev}</span>
+      <div class="nhc-header">
+        <div class="nhc-id">${entry.nodeId}</div>
+        <div class="nhc-state-badge hs-${state}">${state}</div>
+      </div>
+      <div class="nhc-state-bar hs-${state}"></div>
+      <div class="nhc-metrics">
+        <div class="nhc-metric">
+          <div class="nhc-metric-label">Last Heartbeat</div>
+          <div class="nhc-metric-value ${hbStale ? 'stale' : ''}">${hbVal}</div>
         </div>
-        <div class="event-analysis">${evt.analysis ?? ''}</div>
-        <div class="event-action"><span>▶ ACTION:</span> ${evt.recommendedAction ?? ''}</div>
-        ${metricsHTML ? `<div class="event-metrics">${metricsHTML}</div>` : ''}
-        <div class="event-time">${ts} UTC</div>
+        <div class="nhc-metric">
+          <div class="nhc-metric-label">Last Ping</div>
+          <div class="nhc-metric-value">${pingVal}</div>
+        </div>
+        <div class="nhc-metric">
+          <div class="nhc-metric-label">Round Trip</div>
+          <div class="nhc-metric-value">${rtVal}</div>
+        </div>
+        <div class="nhc-metric">
+          <div class="nhc-metric-label">Firmware</div>
+          <div class="nhc-metric-value">${fwVal}</div>
+        </div>
+        <div class="nhc-metric">
+          <div class="nhc-metric-label">Signal</div>
+          <div class="nhc-metric-value">${sigVal}</div>
+        </div>
+        <div class="nhc-metric">
+          <div class="nhc-metric-label">Battery</div>
+          <div class="nhc-metric-value">${batVal}</div>
+        </div>
+      </div>
+      <div class="nhc-footer">
+        <div class="nhc-segment">${entry.pipelineSegment || '—'}</div>
+        <button class="ping-btn ${isPinging ? 'pinging' : ''}"
+                data-nodeid="${entry.nodeId}"
+                ${isPinging ? 'disabled' : ''}>
+          ${isPinging ? '◌ Pinging…' : '▷ Ping'}
+        </button>
       </div>`;
-    return card;
-  }
-
-  // ── Render event ──────────────────────────────────────────────────────────
-  function renderEvent(evt) {
-    const sev  = (evt.severity ?? 'UNKNOWN').toUpperCase();
-    const type = (evt.eventType ?? 'ALARM').toUpperCase();
-
-    updateStats(sev);
-    bumpBin(sev);
-    updateNode(evt.nodeId, sev, evt.currentValue, evt.unit);
-    if (evt.recommendedAction) addAction(evt.nodeId, evt.recommendedAction);
-
-    // Filter
-    const show =
-      activeFilter === 'ALL' ||
-      activeFilter === type ||
-      (activeFilter === 'HIGH' && /HIGH|CRITICAL/.test(sev));
-
-    const list = document.getElementById('event-list');
-    const empty = document.getElementById('empty-state');
-    if (empty) empty.remove();
-
-    if (show) {
-      const card = buildCard(evt);
-      list.prepend(card);
-      while (list.children.length > MAX_CARDS) list.lastChild.remove();
-    }
-  }
-
-  // ── SSE connection ────────────────────────────────────────────────────────
-  const SSE_URL = '/api/stream/events';
-  let es;
-
-  function connect() {
-    setConnStatus('connecting');
-    es = new EventSource(SSE_URL);
-
-    es.addEventListener('telemetry', e => {
-      try {
-        const evt = JSON.parse(e.data);
-        if (paused) { eventBuf.push(evt); return; }
-        renderEvent(evt);
-      } catch (err) { console.error('Parse error', err); }
-    });
-
-    es.onopen  = () => setConnStatus('live');
-    es.onerror = () => {
-      setConnStatus('error');
-      es.close();
-      setTimeout(connect, 4000);   // reconnect after 4 s
-    };
-  }
-
-  function setConnStatus(state) {
-    const dot   = document.getElementById('conn-dot');
-    const label = document.getElementById('conn-label');
-    dot.className   = `conn-dot ${state === 'live' ? 'live' : state === 'error' ? 'error' : ''}`;
-    label.textContent = state === 'live' ? 'LIVE' : state === 'error' ? 'RECONNECTING...' : 'CONNECTING';
-  }
-
-  connect();
-
-  // ── Pause / resume ────────────────────────────────────────────────────────
-  document.getElementById('pause-btn').addEventListener('click', function() {
-    paused = !paused;
-    this.textContent = paused ? '▶ Resume' : '⏸ Pause';
-    this.classList.toggle('paused', paused);
-
-    if (!paused) {
-      eventBuf.forEach(renderEvent);
-      eventBuf = [];
-    }
+    grid.appendChild(card);
   });
 
-  // ── Filter buttons ────────────────────────────────────────────────────────
-  document.querySelectorAll('.filter-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-      this.classList.add('active');
-      activeFilter = this.dataset.filter;
+  grid.querySelectorAll('.ping-btn').forEach(btn => {
+    btn.addEventListener('click', function() { triggerPing(this.dataset.nodeid); });
+  });
+}
 
-      // Re-evaluate visibility of existing cards
-      document.querySelectorAll('.event-card').forEach(card => {
-        const t = card.dataset.type;
-        const s = card.dataset.sev;
-        const show =
-          activeFilter === 'ALL' ||
-          activeFilter === t ||
-          (activeFilter === 'HIGH' && /HIGH|CRITICAL/.test(s));
-        card.style.display = show ? '' : 'none';
-      });
+// ── Ping ───────────────────────────────────────────────────────────────────
+async function triggerPing(nodeId) {
+  if (!healthNodes[nodeId]) {
+    upsertHealthNode({ nodeId, healthState: 'UNKNOWN' });
+  }
+
+  pendingPings.add(nodeId);
+  renderNodeHealthGrid();
+  try {
+    await fetch(`/api/nodes/${nodeId}/ping`, { method: 'POST' });
+    // Result arrives via SSE; safety timeout clears spinner after 15s
+    setTimeout(() => {
+      if (pendingPings.has(nodeId)) { pendingPings.delete(nodeId); renderNodeHealthGrid(); }
+    }, 15000);
+  } catch (err) {
+    console.error('Ping failed', err);
+    pendingPings.delete(nodeId);
+    renderNodeHealthGrid();
+  }
+}
+
+// ── Actions list ───────────────────────────────────────────────────────────
+function addAction(nodeId, action) {
+  const list = document.getElementById('actions-list');
+  const item = document.createElement('div');
+  item.className = 'action-item';
+  item.innerHTML = `<div class="action-node">${nodeId}</div><div class="action-text">${action}</div>`;
+  list.prepend(item);
+  while (list.children.length > MAX_ACTIONS) list.lastChild.remove();
+}
+
+// ── Stats flash ────────────────────────────────────────────────────────────
+function flashStat(elId) {
+  const el = document.getElementById(elId);
+  el.classList.remove('flash');
+  void el.offsetWidth;
+  el.classList.add('flash');
+}
+
+function updateStats(sev) {
+  counts.total++;
+  document.getElementById('val-total').textContent = counts.total;
+  flashStat('val-total');
+  if (/HIGH|CRITICAL|OFFLINE/.test(sev)) {
+    counts.high++;
+    document.getElementById('val-high').textContent = counts.high;
+    flashStat('val-high');
+  } else if (/MED|DEG/.test(sev)) {
+    counts.med++;
+    document.getElementById('val-med').textContent = counts.med;
+    flashStat('val-med');
+  } else {
+    counts.low++;
+    document.getElementById('val-low').textContent = counts.low;
+    flashStat('val-low');
+  }
+}
+
+// ── Build event card ───────────────────────────────────────────────────────
+function buildCard(evt) {
+  const sev  = (evt.severity  ?? 'UNKNOWN').toUpperCase();
+  const type = (evt.eventType ?? 'ALARM').toUpperCase();
+
+  let metricsHTML = '';
+  if (evt.currentValue    != null) metricsHTML += `<div class="metric">VALUE <b>${Number(evt.currentValue).toFixed(1)} ${evt.unit ?? ''}</b></div>`;
+  if (evt.threshold       != null) metricsHTML += `<div class="metric">THRESHOLD <b>${evt.threshold} ${evt.unit ?? ''}</b></div>`;
+  if (evt.variancePercent != null) metricsHTML += `<div class="metric">VARIANCE <b>${Number(evt.variancePercent).toFixed(1)}%</b></div>`;
+  if (evt.totalNodes      != null) metricsHTML += `<div class="metric">NODES <b>${evt.affectedNodes ?? 0}/${evt.totalNodes}</b></div>`;
+  if (type === 'PING' && evt.currentValue != null) metricsHTML += `<div class="metric">RTT <b>${evt.currentValue.toFixed(0)} ms</b></div>`;
+
+  const ts = new Date(evt.timestamp).toLocaleTimeString('en-US', { hour12: false });
+
+  const card = document.createElement('div');
+  card.className = 'event-card';
+  card.dataset.sev  = sev;
+  card.dataset.type = type;
+  card.innerHTML = `
+    <div class="severity-stripe"></div>
+    <div class="event-body">
+      <div class="event-meta">
+        <span class="event-id">#${evt.eventId ?? '——'}</span>
+        <span class="event-node">${evt.nodeId}</span>
+        <span class="event-type-badge type-${type}">${type}</span>
+        <span class="sev-badge sev-${sev}">${sev}</span>
+      </div>
+      <div class="event-analysis">${evt.analysis ?? ''}</div>
+      <div class="event-action"><span>▶ ACTION:</span> ${evt.recommendedAction ?? ''}</div>
+      ${metricsHTML ? `<div class="event-metrics">${metricsHTML}</div>` : ''}
+      <div class="event-time">${ts} UTC</div>
+    </div>`;
+  return card;
+}
+
+// ── Handle incoming SSE event ──────────────────────────────────────────────
+function renderEvent(evt) {
+  const sev  = (evt.severity  ?? 'UNKNOWN').toUpperCase();
+  const type = (evt.eventType ?? 'ALARM').toUpperCase();
+
+  updateStats(sev);
+  bumpBin(sev);
+  updateTelemetryNode(evt.nodeId, sev, evt.currentValue, evt.unit);
+  if (evt.recommendedAction) addAction(evt.nodeId, evt.recommendedAction);
+
+  // Update node health registry from HEALTH and PING events
+  if (type === 'HEALTH' || type === 'PING') {
+    const healthState = sev === 'HIGH'   ? 'OFFLINE'
+                      : sev === 'MEDIUM' ? 'DEGRADED'
+                      :                    'HEALTHY';
+    upsertHealthNode({
+      nodeId:          evt.nodeId,
+      pipelineSegment: evt.pipelineSegment,
+      healthState,
+      lastPing:        type === 'PING' ? evt.timestamp : healthNodes[evt.nodeId]?.lastPing,
+      lastRoundTripMs: type === 'PING' && evt.currentValue != null
+                         ? Math.round(evt.currentValue)
+                         : healthNodes[evt.nodeId]?.lastRoundTripMs,
+    });
+    if (type === 'PING') { pendingPings.delete(evt.nodeId); renderNodeHealthGrid(); }
+  }
+
+  // Heartbeat recovery event (LOW severity HEALTH) — update lastHeartbeat
+  if (type === 'HEALTH' && sev === 'LOW') {
+    upsertHealthNode({ nodeId: evt.nodeId, lastHeartbeat: evt.timestamp, healthState: 'HEALTHY' });
+  }
+
+  // Feed card visibility
+  const show =
+    activeFilter === 'ALL' ||
+    activeFilter === type ||
+    (activeFilter === 'HEALTH' && (type === 'HEALTH' || type === 'PING')) ||
+    (activeFilter === 'HIGH'   && /HIGH|CRITICAL|OFFLINE/.test(sev));
+
+  const list  = document.getElementById('event-list');
+  const empty = document.getElementById('empty-state');
+  if (empty) empty.remove();
+
+  if (show) {
+    const card = buildCard(evt);
+    list.prepend(card);
+    while (list.children.length > MAX_CARDS) list.lastChild.remove();
+  }
+}
+
+// ── SSE connection ─────────────────────────────────────────────────────────
+const SSE_URL = '/api/stream/events';
+let es;
+
+function connect() {
+  setConnStatus('connecting');
+  es = new EventSource(SSE_URL);
+  es.addEventListener('telemetry', e => {
+    try {
+      const evt = JSON.parse(e.data);
+      if (paused) { eventBuf.push(evt); return; }
+      renderEvent(evt);
+    } catch (err) { console.error('Parse error', err); }
+  });
+  es.onopen  = () => setConnStatus('live');
+  es.onerror = () => { setConnStatus('error'); es.close(); setTimeout(connect, 4000); };
+}
+
+function setConnStatus(state) {
+  document.getElementById('conn-dot').className =
+    `conn-dot ${state === 'live' ? 'live' : state === 'error' ? 'error' : ''}`;
+  document.getElementById('conn-label').textContent =
+    state === 'live' ? 'LIVE' : state === 'error' ? 'RECONNECTING...' : 'CONNECTING';
+}
+
+connect();
+
+// ── Pause / resume ─────────────────────────────────────────────────────────
+document.getElementById('pause-btn').addEventListener('click', function() {
+  paused = !paused;
+  this.textContent = paused ? '▶ Resume' : '⏸ Pause';
+  this.classList.toggle('paused', paused);
+  if (!paused) { eventBuf.forEach(renderEvent); eventBuf = []; }
+});
+
+// ── Feed filter buttons ────────────────────────────────────────────────────
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    activeFilter = this.dataset.filter;
+    document.querySelectorAll('.event-card').forEach(card => {
+      const t = card.dataset.type;
+      const s = card.dataset.sev;
+      const show =
+        activeFilter === 'ALL' ||
+        activeFilter === t ||
+        (activeFilter === 'HEALTH' && (t === 'HEALTH' || t === 'PING')) ||
+        (activeFilter === 'HIGH'   && /HIGH|CRITICAL|OFFLINE/.test(s));
+      card.style.display = show ? '' : 'none';
     });
   });
+});
+
+// ── Node health filter buttons ─────────────────────────────────────────────
+document.querySelectorAll('.health-filter-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.health-filter-btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    activeHFilter = this.dataset.hfilter;
+    renderNodeHealthGrid();
+  });
+});
+
+const manualPingNodeInput = document.getElementById('manual-ping-node');
+const manualPingBtn = document.getElementById('manual-ping-btn');
+
+function triggerManualPing() {
+  const nodeId = (manualPingNodeInput.value || '').trim().toUpperCase();
+  if (!nodeId) return;
+  triggerPing(nodeId);
+  manualPingNodeInput.value = '';
+}
+
+manualPingBtn.addEventListener('click', triggerManualPing);
+manualPingNodeInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') triggerManualPing();
+});
+
+// ── Bootstrap: pre-populate node health from API ───────────────────────────
+fetch('/api/nodes')
+  .then(r => r.ok ? r.json() : [])
+  .then(entries => {
+    entries.forEach(e => { healthNodes[e.nodeId] = e; });
+    renderNodeHealthGrid();
+    updateNodeSummary();
+  })
+  .catch(() => {});
 </script>
 </body>
 </html>
