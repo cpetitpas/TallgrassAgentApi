@@ -1,0 +1,126 @@
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
+using TallgrassAgentApi.Models;
+
+namespace TallgrassAgentApi.Services;
+
+public class ChatService : IChatService
+{
+    private readonly HttpClient                 _http;
+    private readonly IConfiguration             _config;
+    private readonly IConversationStore         _store;
+    private readonly ILogger<ChatService>       _logger;
+
+    private static readonly JsonSerializerOptions JsonOpts = new()
+    {
+        PropertyNamingPolicy   = JsonNamingPolicy.CamelCase,
+        WriteIndented          = false,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    };
+
+    private const string SystemPrompt = """
+        You are a pipeline operations assistant for Tallgrass Energy.
+        You help operators understand and respond to pipeline alarms and anomalies.
+        Be concise and technical. When referencing sensor values use the correct units.
+        If asked why a severity was assigned, explain your reasoning based on the data you were given.
+        If you do not have enough information to answer a question, say so clearly.
+        Do not invent sensor readings or maintenance records.
+        """;
+
+    public ChatService(
+        HttpClient           http,
+        IConfiguration       config,
+        IConversationStore   store,
+        ILogger<ChatService> logger)
+    {
+        _http   = http;
+        _config = config;
+        _store  = store;
+        _logger = logger;
+    }
+
+    public async Task<ChatResponse> SendAsync(
+        string      incidentId,
+        string      nodeId,
+        ChatRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var apiKey = _config["Anthropic:ApiKey"]
+            ?? throw new InvalidOperationException("Anthropic:ApiKey not configured");
+
+        // Ensure conversation exists
+        var state = _store.GetOrCreate(incidentId, nodeId);
+
+        // Append the incoming user message
+        var userMessage = new ChatMessage
+        {
+            Role      = "user",
+            Content   = request.Message,
+            Timestamp = DateTimeOffset.UtcNow
+        };
+        _store.Append(incidentId, userMessage);
+
+        // Build messages array for Anthropic — full history every time
+        List<ChatMessage> snapshot;
+        lock (state.Messages)
+            snapshot = state.Messages.ToList();
+
+        var apiMessages = snapshot.Select(m => new { role = m.Role, content = m.Content }).ToList();
+
+        var requestBody = new
+        {
+            model      = "claude-opus-4-6",
+            max_tokens = 1024,
+            system     = SystemPrompt,
+            messages   = apiMessages
+        };
+
+        var json        = JsonSerializer.Serialize(requestBody, JsonOpts);
+        var httpContent = new StringContent(json, Encoding.UTF8, "application/json");
+
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post,
+            "https://api.anthropic.com/v1/messages");
+        httpRequest.Headers.Add("x-api-key", apiKey);
+        httpRequest.Headers.Add("anthropic-version", "2023-06-01");
+        httpRequest.Content = httpContent;
+
+        using var httpResponse = await _http.SendAsync(httpRequest, cancellationToken);
+        var responseJson = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!httpResponse.IsSuccessStatusCode)
+        {
+            _logger.LogError("Anthropic API error {Status}: {Body}",
+                (int)httpResponse.StatusCode, responseJson);
+            throw new HttpRequestException(
+                $"Anthropic API returned {(int)httpResponse.StatusCode}");
+        }
+
+        using var doc   = JsonDocument.Parse(responseJson);
+        var replyText   = doc.RootElement
+            .GetProperty("content")[0]
+            .GetProperty("text")
+            .GetString() ?? "";
+
+        // Append assistant reply
+        var assistantMessage = new ChatMessage
+        {
+            Role      = "assistant",
+            Content   = replyText,
+            Timestamp = DateTimeOffset.UtcNow
+        };
+        _store.Append(incidentId, assistantMessage);
+
+        List<ChatMessage> finalSnapshot;
+        lock (state.Messages)
+            finalSnapshot = state.Messages.ToList();
+
+        return new ChatResponse
+        {
+            IncidentId = incidentId,
+            Reply      = replyText,
+            TurnCount  = finalSnapshot.Count(m => m.Role == "user"),
+            History    = finalSnapshot
+        };
+    }
+}
