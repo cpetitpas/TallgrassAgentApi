@@ -8,6 +8,20 @@ using TallgrassAgentApi.Services;
 
 namespace TallgrassAgentApi.Tests;
 
+public sealed class IntegrationFactAttribute : FactAttribute
+{
+    public const string EnableEnvVar = "RUN_INTEGRATION_TESTS";
+
+    public IntegrationFactAttribute()
+    {
+        var enabled = Environment.GetEnvironmentVariable(EnableEnvVar);
+        if (!string.Equals(enabled, "true", StringComparison.OrdinalIgnoreCase))
+        {
+            Skip = $"Integration tests are skipped by default. Set {EnableEnvVar}=true to enable.";
+        }
+    }
+}
+
 // Note: IntegrationTests does not inherit TestBase because it uses the real
 // ClaudeService with a live API key rather than the FakeClaudeService.
 // Helper methods are duplicated here intentionally.
@@ -36,7 +50,7 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
     // ALARM ENDPOINT TESTS
     // -------------------------
 
-    [Fact]
+    [IntegrationFact]
     public async Task AlarmAnalyze_ReturnsSuccess()
     {
         var request = GetTestAlarmRequest();
@@ -44,7 +58,7 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task AlarmAnalyze_NodeId_IsPopulated()
     {
         var request = GetTestAlarmRequest();
@@ -52,7 +66,7 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.False(string.IsNullOrWhiteSpace(result.NodeId), "NodeId should not be empty");
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task AlarmAnalyze_Analysis_IsPopulated()
     {
         var request = GetTestAlarmRequest();
@@ -60,7 +74,7 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.False(string.IsNullOrWhiteSpace(result.Analysis), "Analysis should not be empty");
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task AlarmAnalyze_RecommendedAction_IsPopulated()
     {
         var request = GetTestAlarmRequest();
@@ -68,7 +82,7 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.False(string.IsNullOrWhiteSpace(result.RecommendedAction), "RecommendedAction should not be empty");
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task AlarmAnalyze_Severity_IsValidValue()
     {
         var request = GetTestAlarmRequest();
@@ -81,7 +95,7 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
     // FLOW ENDPOINT TESTS
     // -------------------------
 
-    [Fact]
+    [IntegrationFact]
     public async Task FlowAnalyze_ReturnsSuccess()
     {
         var request = GetTestFlowRequest();
@@ -89,7 +103,7 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task FlowAnalyze_NodeId_IsPopulated()
     {
         var request = GetTestFlowRequest();
@@ -97,7 +111,7 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.False(string.IsNullOrWhiteSpace(result.NodeId), "NodeId should not be empty");
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task FlowAnalyze_PipelineSegment_IsPopulated()
     {
         var request = GetTestFlowRequest();
@@ -105,7 +119,7 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.False(string.IsNullOrWhiteSpace(result.PipelineSegment), "PipelineSegment should not be empty");
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task FlowAnalyze_Analysis_IsPopulated()
     {
         var request = GetTestFlowRequest();
@@ -113,7 +127,7 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.False(string.IsNullOrWhiteSpace(result.Analysis), "Analysis should not be empty");
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task FlowAnalyze_RecommendedAction_IsPopulated()
     {
         var request = GetTestFlowRequest();
@@ -121,7 +135,7 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.False(string.IsNullOrWhiteSpace(result.RecommendedAction), "RecommendedAction should not be empty");
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task FlowAnalyze_Severity_IsValidValue()
     {
         var request = GetTestFlowRequest();
@@ -130,7 +144,7 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Contains(result.Severity, valid);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task FlowAnalyze_Variance_IsCalculated()
     {
         var request = GetTestFlowRequest();
@@ -142,7 +156,7 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
     // MULTI-NODE ENDPOINT TESTS
     // -------------------------
 
-    [Fact]
+    [IntegrationFact]
     public async Task MultiNodeAnalyze_ReturnsSuccess()
     {
         var request = GetTestMultiNodeRequest();
@@ -150,7 +164,7 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task MultiNodeAnalyze_RegionId_IsPopulated()
     {
         var request = GetTestMultiNodeRequest();
@@ -158,7 +172,7 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.False(string.IsNullOrWhiteSpace(result.RegionId), "RegionId should not be empty");
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task MultiNodeAnalyze_Summary_IsPopulated()
     {
         var request = GetTestMultiNodeRequest();
@@ -166,7 +180,7 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.False(string.IsNullOrWhiteSpace(result.Summary), "Summary should not be empty");
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task MultiNodeAnalyze_RecommendedAction_IsPopulated()
     {
         var request = GetTestMultiNodeRequest();
@@ -174,7 +188,7 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.False(string.IsNullOrWhiteSpace(result.RecommendedAction), "RecommendedAction should not be empty");
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task MultiNodeAnalyze_OverallStatus_IsValidValue()
     {
         var request = GetTestMultiNodeRequest();
@@ -183,7 +197,7 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Contains(result.OverallStatus, valid);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task MultiNodeAnalyze_NodeCounts_AddUpToTotal()
     {
         var request = GetTestMultiNodeRequest();
@@ -192,7 +206,7 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Equal(result.TotalNodes, countSum);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task MultiNodeAnalyze_AffectedNodes_IsNotNull()
     {
         var request = GetTestMultiNodeRequest();
@@ -200,7 +214,7 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.NotNull(result.AffectedNodes);
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task MultiNodeAnalyze_EmptyReadings_ReturnsBadRequest()
     {
         var request = new MultiNodeRequest { RegionId = "REGION-TEST", Readings = new() };
