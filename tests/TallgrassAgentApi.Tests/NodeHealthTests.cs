@@ -274,8 +274,6 @@ public class NodeHeartbeatSseTests : IClassFixture<WebApplicationFactory<Program
     [Fact]
     public async Task Ping_PublishesEventToSseStream()
     {
-        var channel = _factory.Services.GetRequiredService<TelemetryChannel>();
-
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var sseResponse = await _client.SendAsync(
             new HttpRequestMessage(HttpMethod.Get, "/api/stream/events"),

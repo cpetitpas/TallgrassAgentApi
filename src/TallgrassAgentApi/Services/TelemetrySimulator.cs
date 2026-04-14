@@ -29,9 +29,18 @@ public class TelemetrySimulator : BackgroundService
     private static readonly string[] AlarmTypes =
         ["HIGH_PRESSURE", "LOW_PRESSURE", "HIGH_TEMPERATURE", "FLOW_ANOMALY", "COMPRESSOR_FAULT"];
 
-    // Stable node→segment assignment so heartbeats are consistent
+    // Stable node→segment assignment so heartbeats are consistent across processes.
+    private static int GetSegmentIndex(string id)
+    {
+        var lastDash = id.LastIndexOf('-');
+        if (lastDash >= 0 && int.TryParse(id[(lastDash + 1)..], out var numericSuffix) && numericSuffix > 0)
+        {
+            return (numericSuffix - 1) % Segments.Length;
+        }
+        return (int)(unchecked((uint)id.GetHashCode()) % (uint)Segments.Length);
+    }
     private static readonly Dictionary<string, string> NodeSegments =
-        NodeIds.ToDictionary(id => id, id => Segments[Math.Abs(id.GetHashCode()) % Segments.Length]);
+        NodeIds.ToDictionary(id => id, id => Segments[GetSegmentIndex(id)]);
 
     public TelemetrySimulator(
         IServiceScopeFactory scopeFactory,
