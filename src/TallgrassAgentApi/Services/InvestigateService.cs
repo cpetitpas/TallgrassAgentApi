@@ -1,4 +1,3 @@
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using TallgrassAgentApi.Models;
@@ -98,7 +97,10 @@ public class InvestigateService : IInvestigateService
             {
                 _logger.LogError("Anthropic API error {Status}: {Body}",
                     (int)httpResponse.StatusCode, responseJson);
-                break;
+                throw new HttpRequestException(
+                    $"Anthropic API returned {(int)httpResponse.StatusCode}: {responseJson}",
+                    null,
+                    httpResponse.StatusCode);
             }
 
             using var doc   = JsonDocument.Parse(responseJson);
