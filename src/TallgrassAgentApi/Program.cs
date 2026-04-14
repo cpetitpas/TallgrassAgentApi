@@ -5,7 +5,9 @@ var builder = WebApplication.CreateBuilder(args);
 // Register services so they can be injected anywhere that needs them
 builder.Services.AddControllers();
 builder.Services.AddHttpClient();  // gives us HttpClient to call external APIs
-builder.Services.AddScoped<IClaudeService, ClaudeService>();  // our custom Claude wrapper
+builder.Services.AddScoped<IClaudeService, ClaudeService>();
+builder.Services.AddHttpClient<InvestigateService>();
+builder.Services.AddScoped<IInvestigateService, InvestigateService>();  // our custom Claude wrapper
 
 // --- Telemetry streaming ---
 builder.Services.AddSingleton<TelemetryChannel>();
