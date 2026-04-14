@@ -119,26 +119,19 @@ public class InvestigateService : IInvestigateService
                     var text = block.GetProperty("text").GetString() ?? "";
                     assistantBlocks.Add(new { type = "text", text });
 
-                    // Try to parse the final JSON answer
-                    var trimmed = text.Trim();
-                    if (trimmed.StartsWith('{'))
+                    // Try to parse the final JSON answer from raw, fenced, or mixed text.
+                    if (TryParseConclusionPayload(text, out var parsedConclusion, out var parsedSeverity, out var parsedAction))
                     {
-                        try
-                        {
-                            using var answerDoc = JsonDocument.Parse(trimmed);
-                            var ans = answerDoc.RootElement;
-                            conclusion        = ans.TryGetProperty("conclusion",          out var c) ? c.GetString() ?? conclusion        : conclusion;
-                            severity          = ans.TryGetProperty("severity",            out var s) ? s.GetString() ?? severity          : severity;
-                            recommendedAction = ans.TryGetProperty("recommended_action",  out var r) ? r.GetString() ?? recommendedAction : recommendedAction;
-                        }
-                        catch { /* not JSON — ignore */ }
+                        conclusion        = parsedConclusion ?? conclusion;
+                        severity          = parsedSeverity ?? severity;
+                        recommendedAction = parsedAction ?? recommendedAction;
                     }
                 }
                 else if (type == "tool_use")
                 {
                     var toolUseId = block.GetProperty("id").GetString()    ?? "";
                     var toolName  = block.GetProperty("name").GetString()   ?? "";
-                    var toolInput = block.GetProperty("input");
+                    var toolInput = block.GetProperty("input").Clone();
 
                     assistantBlocks.Add(new
                     {
@@ -152,7 +145,7 @@ public class InvestigateService : IInvestigateService
                     {
                         ToolUseId = toolUseId,
                         ToolName  = toolName,
-                        Input     = toolInput.Clone()
+                        Input     = toolInput
                     });
                 }
             }
@@ -194,5 +187,81 @@ public class InvestigateService : IInvestigateService
             ToolsInvoked      = toolsInvoked,
             Iterations        = iterations
         };
+    }
+
+    private static bool TryParseConclusionPayload(
+        string text,
+        out string? conclusion,
+        out string? severity,
+        out string? recommendedAction)
+    {
+        conclusion = null;
+        severity = null;
+        recommendedAction = null;
+
+        var candidates = BuildJsonCandidates(text);
+        foreach (var candidate in candidates)
+        {
+            try
+            {
+                using var answerDoc = JsonDocument.Parse(candidate);
+                var ans = answerDoc.RootElement;
+
+                conclusion = ans.TryGetProperty("conclusion", out var c) ? c.GetString() : null;
+                severity = ans.TryGetProperty("severity", out var s) ? s.GetString() : null;
+                recommendedAction = ans.TryGetProperty("recommended_action", out var r) ? r.GetString() : null;
+
+                if (!string.IsNullOrWhiteSpace(conclusion) ||
+                    !string.IsNullOrWhiteSpace(severity) ||
+                    !string.IsNullOrWhiteSpace(recommendedAction))
+                {
+                    return true;
+                }
+            }
+            catch
+            {
+                // Ignore malformed candidates and keep trying.
+            }
+        }
+
+        return false;
+    }
+
+    private static IEnumerable<string> BuildJsonCandidates(string text)
+    {
+        var trimmed = text.Trim();
+        if (trimmed.StartsWith('{') && trimmed.EndsWith('}'))
+        {
+            yield return trimmed;
+        }
+
+        var fenceStart = text.IndexOf("```");
+        if (fenceStart >= 0)
+        {
+            var contentStart = text.IndexOf('\n', fenceStart);
+            if (contentStart >= 0)
+            {
+                var fenceEnd = text.IndexOf("```", contentStart + 1, StringComparison.Ordinal);
+                if (fenceEnd > contentStart)
+                {
+                    var fenced = text[(contentStart + 1)..fenceEnd].Trim();
+                    if (!string.IsNullOrWhiteSpace(fenced))
+                    {
+                        yield return fenced;
+                    }
+                }
+            }
+        }
+
+        var firstBrace = text.IndexOf('{');
+        var lastBrace = text.LastIndexOf('}');
+        if (firstBrace >= 0 && lastBrace > firstBrace)
+        {
+            var span = text[firstBrace..(lastBrace + 1)].Trim();
+            if (!string.IsNullOrWhiteSpace(span))
+            {
+                yield return span;
+            }
+        }
     }
 }
