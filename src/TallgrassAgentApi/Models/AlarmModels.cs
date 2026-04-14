@@ -89,3 +89,53 @@ public class TelemetryEvent
     public int? TotalNodes { get; set; }                    // multinode events only
     public int? AffectedNodes { get; set; }                 // multinode events only
 }
+
+// ── Heartbeat (push from node) ────────────────────────────────────────────────
+
+public class NodeHeartbeatRequest
+{
+    public string NodeId { get; set; } = string.Empty;
+    public string PipelineSegment { get; set; } = string.Empty;
+    public string FirmwareVersion { get; set; } = string.Empty;
+    public double? SignalStrength { get; set; }    // dBm, optional
+    public double? BatteryPercent { get; set; }    // optional, for battery-powered nodes
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+}
+
+public class NodeHeartbeatResponse
+{
+    public string NodeId { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;   // ACKNOWLEDGED
+    public DateTime ServerTimestamp { get; set; } = DateTime.UtcNow;
+}
+
+// ── Ping (pull from server) ───────────────────────────────────────────────────
+
+public class NodePingResult
+{
+    public string NodeId { get; set; } = string.Empty;
+    public bool Reachable { get; set; }
+    public int? RoundTripMs { get; set; }
+    public string? FirmwareVersion { get; set; }
+    public double? SignalStrength { get; set; }
+    public double? BatteryPercent { get; set; }
+    public string Status { get; set; } = string.Empty;    // ONLINE | DEGRADED | OFFLINE
+    public string? ErrorMessage { get; set; }
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+}
+
+// ── Registry entry (server-side state per node) ───────────────────────────────
+
+public class NodeHealthEntry
+{
+    public string NodeId { get; set; } = string.Empty;
+    public string PipelineSegment { get; set; } = string.Empty;
+    public string HealthState { get; set; } = "UNKNOWN";  // HEALTHY | DEGRADED | OFFLINE | UNKNOWN
+    public DateTime? LastHeartbeat { get; set; }
+    public DateTime? LastPing { get; set; }
+    public int MissedIntervals { get; set; }
+    public string? FirmwareVersion { get; set; }
+    public double? SignalStrength { get; set; }
+    public double? BatteryPercent { get; set; }
+    public int? LastRoundTripMs { get; set; }
+}
