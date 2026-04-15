@@ -15,7 +15,7 @@ public class InMemoryConversationStore : IConversationStore
         });
 
     public ConversationState? Get(string incidentId)
-        => _store.TryGetValue(incidentId, out var s) ? s : null;
+        => _store.TryGetValue(incidentId, out var state) ? Snapshot(state) : null;
 
     public void Append(string incidentId, ChatMessage message)
     {
@@ -30,8 +30,36 @@ public class InMemoryConversationStore : IConversationStore
     }
 
     public IReadOnlyList<ConversationState> All()
-        => _store.Values.OrderByDescending(s => s.UpdatedAt).ToList();
+        => _store.Values
+            .Select(Snapshot)
+            .OrderByDescending(s => s.UpdatedAt)
+            .ToList();
 
     public bool Delete(string incidentId)
         => _store.TryRemove(incidentId, out _);
+
+    private static ConversationState Snapshot(ConversationState state)
+    {
+        List<ChatMessage> messages;
+        lock (state.Messages)
+        {
+            messages = state.Messages
+                .Select(m => new ChatMessage
+                {
+                    Role = m.Role,
+                    Content = m.Content,
+                    Timestamp = m.Timestamp
+                })
+                .ToList();
+        }
+
+        return new ConversationState
+        {
+            IncidentId = state.IncidentId,
+            NodeId = state.NodeId,
+            CreatedAt = state.CreatedAt,
+            UpdatedAt = state.UpdatedAt,
+            Messages = messages
+        };
+    }
 }

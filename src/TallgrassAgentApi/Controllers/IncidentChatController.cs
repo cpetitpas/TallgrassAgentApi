@@ -32,6 +32,14 @@ public class IncidentChatController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.Message))
             return BadRequest("Message is required.");
 
+        var existing = _store.Get(incidentId);
+        if (existing is not null &&
+            !string.IsNullOrWhiteSpace(existing.NodeId) &&
+            !string.Equals(existing.NodeId, nodeId, StringComparison.OrdinalIgnoreCase))
+        {
+            return Conflict($"Incident '{incidentId}' is already bound to node '{existing.NodeId}'.");
+        }
+
         try
         {
             var response = await _chat.SendAsync(incidentId, nodeId, request, cancellationToken);

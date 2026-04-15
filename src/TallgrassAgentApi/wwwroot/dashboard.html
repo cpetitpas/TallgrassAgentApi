@@ -1472,8 +1472,12 @@ function renderInvestigationResult(data) {
 
   document.getElementById('inv-res-node').textContent       = data.nodeId ?? '—';
   document.getElementById('inv-res-conclusion').textContent = data.conclusion ?? '—';
-  document.getElementById('inv-res-action').innerHTML       =
-    `<b>▶ RECOMMENDED ACTION:</b> ${data.recommendedAction ?? '—'}`;
+  const actionEl = document.getElementById('inv-res-action');
+  actionEl.textContent = '';
+  const actionLabelEl = document.createElement('b');
+  actionLabelEl.textContent = '▶ RECOMMENDED ACTION:';
+  actionEl.appendChild(actionLabelEl);
+  actionEl.appendChild(document.createTextNode(` ${data.recommendedAction ?? '—'}`));
   document.getElementById('inv-res-iters').textContent      =
     `${data.iterations ?? 0} iterations`;
 
@@ -1518,19 +1522,27 @@ async function seedChatWithResult(incidentId, nodeId, data) {
 }
 
 // ── Chat ───────────────────────────────────────────────────────────────────
+function renderChatEmptyState() {
+  const msgs = document.getElementById('chat-messages');
+  msgs.innerHTML = `
+    <div id="chat-empty">
+      <div class="big">◈</div>
+      <p>Run an investigation to open an incident chat</p>
+    </div>`;
+}
+
 function openChat(incidentId) {
   document.getElementById('chat-incident-id').textContent = incidentId;
   document.getElementById('chat-input-area').classList.remove('disabled');
 
-  // Clear existing messages and show a fresh thread
-  const msgs = document.getElementById('chat-messages');
-  msgs.innerHTML = '';
+  // Start with the placeholder; it stays visible when no history is returned.
+  renderChatEmptyState();
 
   // Fetch full history (includes the seeded exchange)
   fetch(`/api/incidents/${incidentId}/chat`)
     .then(r => r.ok ? r.json() : null)
     .then(state => {
-      if (!state) return;
+      if (!state || !Array.isArray(state.messages) || state.messages.length === 0) return;
       state.messages.forEach(m => appendChatMessage(m.role, m.content, m.timestamp));
       scrollChatToBottom();
     })
@@ -1553,7 +1565,7 @@ function appendChatMessage(role, text, timestamp) {
     <div class="chat-msg-body">
       <div class="chat-msg-role">${role === 'user' ? 'Operator' : 'Agent'}</div>
       <div class="chat-msg-text">${escapeHtml(text)}</div>
-      <div class="chat-msg-time">${ts} UTC</div>
+      <div class="chat-msg-time">${ts}</div>
     </div>`;
   msgs.appendChild(div);
 }
@@ -1638,12 +1650,7 @@ document.getElementById('chat-clear-btn').addEventListener('click', async () => 
   document.getElementById('chat-input-area').classList.add('disabled');
   document.getElementById('inv-result').classList.remove('visible');
 
-  const msgs = document.getElementById('chat-messages');
-  msgs.innerHTML = `
-    <div id="chat-empty">
-      <div class="big">◈</div>
-      <p>Run an investigation to open an incident chat</p>
-    </div>`;
+  renderChatEmptyState();
 });
 
 </script>

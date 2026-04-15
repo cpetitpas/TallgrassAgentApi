@@ -96,11 +96,27 @@ public class ChatService : IChatService
                 $"Anthropic API returned {(int)httpResponse.StatusCode}");
         }
 
-        using var doc   = JsonDocument.Parse(responseJson);
-        var replyText   = doc.RootElement
-            .GetProperty("content")[0]
-            .GetProperty("text")
-            .GetString() ?? "";
+        using var doc = JsonDocument.Parse(responseJson);
+        var replyBuilder = new StringBuilder();
+        if (doc.RootElement.TryGetProperty("content", out var contentElement) &&
+            contentElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var contentBlock in contentElement.EnumerateArray())
+            {
+                if (contentBlock.ValueKind != JsonValueKind.Object)
+                    continue;
+                if (!contentBlock.TryGetProperty("type", out var typeElement) ||
+                    !string.Equals(typeElement.GetString(), "text", StringComparison.Ordinal))
+                    continue;
+                if (contentBlock.TryGetProperty("text", out var textElement))
+                {
+                    var text = textElement.GetString();
+                    if (!string.IsNullOrEmpty(text))
+                        replyBuilder.Append(text);
+                }
+            }
+        }
+        var replyText = replyBuilder.ToString();
 
         // Append assistant reply
         var assistantMessage = new ChatMessage
