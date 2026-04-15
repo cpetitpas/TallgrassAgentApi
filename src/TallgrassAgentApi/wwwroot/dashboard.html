@@ -612,7 +612,7 @@
     grid-template-columns: 5px 1fr;
     gap: 0;
   }
-  .chat-msg-stripe { }
+  .chat-msg-stripe { width: 5px; }
   .chat-msg.user   .chat-msg-stripe { background: var(--accent); }
   .chat-msg.assistant .chat-msg-stripe { background: var(--low); }
 
@@ -845,7 +845,9 @@
       <div class="inv-row">
         <div class="inv-field">
           <label class="inv-label">Node ID</label>
-          <input id="inv-node-id" class="inv-input" type="text" placeholder="NODE-001" maxlength="32" />
+          <select id="inv-node-id" class="inv-select">
+            <option value="">— select node —</option>
+          </select>
         </div>
         <div class="inv-field">
           <label class="inv-label">Alarm Type</label>
@@ -1043,6 +1045,7 @@ function upsertHealthNode(patch) {
   healthNodes[patch.nodeId] = { ...healthNodes[patch.nodeId], ...patch };
   renderNodeHealthGrid();
   updateNodeSummary();
+  refreshNodeIdDropdown();
 }
 
 // ── Relative time helpers ──────────────────────────────────────────────────
@@ -1368,6 +1371,7 @@ fetch('/api/nodes')
     entries.forEach(e => { healthNodes[e.nodeId] = e; });
     renderNodeHealthGrid();
     updateNodeSummary();
+    refreshNodeIdDropdown();
   })
   .catch(() => {});
 
@@ -1381,11 +1385,38 @@ function generateIncidentId() {
   return `INC-${ts}-${rnd}`;
 }
 
+function refreshNodeIdDropdown() {
+  const sel   = document.getElementById('inv-node-id');
+  const current = sel.value;
+
+  // Rebuild options — blank sentinel + all known nodes sorted by state priority
+  const stateOrder = { OFFLINE: 0, DEGRADED: 1, UNKNOWN: 2, HEALTHY: 3 };
+  const entries = Object.values(healthNodes)
+    .sort((a, b) => (stateOrder[a.healthState] ?? 2) - (stateOrder[b.healthState] ?? 2));
+
+  sel.innerHTML = '<option value="">— select node —</option>';
+
+  entries.forEach(e => {
+    const state  = e.healthState ?? 'UNKNOWN';
+    const label  = stateOrder[state] <= 1
+      ? `${e.nodeId}  ⬤ ${state}`   // flag degraded/offline visually
+      : e.nodeId;
+    const opt    = document.createElement('option');
+    opt.value    = e.nodeId;
+    opt.textContent = label;
+    sel.appendChild(opt);
+  });
+
+  // Re-select previous value if it's still in the list
+  if (current && [...sel.options].some(o => o.value === current))
+    sel.value = current;
+}
+
 // ── Investigation ──────────────────────────────────────────────────────────
 document.getElementById('inv-run-btn').addEventListener('click', runInvestigation);
 
 async function runInvestigation() {
-  const nodeId      = document.getElementById('inv-node-id').value.trim().toUpperCase();
+  const nodeId      = document.getElementById('inv-node-id').value;
   const alarmType   = document.getElementById('inv-alarm-type').value;
   const sensorValue = parseFloat(document.getElementById('inv-sensor-value').value);
   const unit        = document.getElementById('inv-unit').value;
@@ -1615,15 +1646,6 @@ document.getElementById('chat-clear-btn').addEventListener('click', async () => 
     </div>`;
 });
 
-// Auto-populate Node ID from Node Health tab if a card was recently active
-document.querySelector('[data-tab="tab-investigate"]').addEventListener('click', () => {
-  // Pre-fill node ID if only one offline/degraded node exists — convenience only
-  const bad = Object.values(healthNodes).filter(e =>
-    e.healthState === 'OFFLINE' || e.healthState === 'DEGRADED');
-  if (bad.length === 1 && !document.getElementById('inv-node-id').value) {
-    document.getElementById('inv-node-id').value = bad[0].nodeId;
-  }
-});
 </script>
 </body>
 </html>
