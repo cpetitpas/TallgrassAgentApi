@@ -41,11 +41,12 @@ public class ClaudeService : IClaudeService
         var json = JsonSerializer.Serialize(requestBody);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        _httpClient.DefaultRequestHeaders.Clear();
-        _httpClient.DefaultRequestHeaders.Add("x-api-key", _apiKey);
-        _httpClient.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, ApiUrl);
+        httpRequest.Headers.Add("x-api-key", _apiKey);
+        httpRequest.Headers.Add("anthropic-version", "2023-06-01");
+        httpRequest.Content = content;
 
-        var response = await _httpClient.PostAsync(ApiUrl, content, ct);
+        var response = await _httpClient.SendAsync(httpRequest, ct);
         var elapsedMs = (long)(DateTimeOffset.UtcNow - started).TotalMilliseconds;
 
         if (!response.IsSuccessStatusCode)
@@ -70,22 +71,44 @@ public class ClaudeService : IClaudeService
 
         var responseJson = await response.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(responseJson);
-        var text = doc.RootElement
-            .GetProperty("content")[0]
-            .GetProperty("text")
-            .GetString() ?? "";
+        var root = doc.RootElement;
+
+        var text = "";
+        if (root.TryGetProperty("content", out var contentArray) &&
+            contentArray.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var block in contentArray.EnumerateArray())
+            {
+                if (block.ValueKind != JsonValueKind.Object)
+                    continue;
+
+                if (block.TryGetProperty("type", out var typeEl) &&
+                    string.Equals(typeEl.GetString(), "text", StringComparison.Ordinal) &&
+                    block.TryGetProperty("text", out var textEl))
+                {
+                    text = textEl.GetString() ?? "";
+                    break;
+                }
+            }
+        }
 
         // Strip markdown code fences if Claude wrapped the JSON despite instructions
         text = text.Trim();
         if (text.StartsWith("```"))
         {
-            text = text.Substring(text.IndexOf('\n') + 1);
-            text = text.Substring(0, text.LastIndexOf("```")).Trim();
+            var firstNewLine = text.IndexOf('\n');
+            var lastFence = text.LastIndexOf("```", StringComparison.Ordinal);
+            if (firstNewLine >= 0 && lastFence > firstNewLine)
+                text = text[(firstNewLine + 1)..lastFence].Trim();
         }
 
-        var usage = doc.RootElement.GetProperty("usage");
-        var inputTokens = usage.GetProperty("input_tokens").GetInt32();
-        var outputTokens = usage.GetProperty("output_tokens").GetInt32();
+        var usage = root.TryGetProperty("usage", out var usageEl) ? usageEl : default;
+        var inputTokens = usage.ValueKind == JsonValueKind.Object && usage.TryGetProperty("input_tokens", out var inEl)
+            ? inEl.GetInt32()
+            : 0;
+        var outputTokens = usage.ValueKind == JsonValueKind.Object && usage.TryGetProperty("output_tokens", out var outEl)
+            ? outEl.GetInt32()
+            : 0;
 
         _audit.Record(new AuditEntry
         {

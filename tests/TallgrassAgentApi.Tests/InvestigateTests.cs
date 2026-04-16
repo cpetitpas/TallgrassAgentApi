@@ -97,6 +97,40 @@ public class InvestigateTests
     }
 
     [Fact]
+    public async Task Audit_RecordsOneEntryPerIteration()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Anthropic:ApiKey"] = "test-key"
+            })
+            .Build();
+
+        var audit = new AuditService();
+        var svc = new InvestigateService(
+            new HttpClient(new FakeAnthropicHandler()),
+            audit,
+            config,
+            NullLogger<InvestigateService>.Instance);
+
+        var response = await svc.InvestigateAsync(new InvestigateRequest
+        {
+            NodeId = "NODE-003",
+            AlarmType = "HIGH_PRESSURE",
+            SensorValue = 1290,
+            Unit = "PSI"
+        });
+
+        var investigateEntries = audit.GetRecent(10)
+            .Where(e => e.Kind == AuditEntryKind.Investigate)
+            .ToList();
+
+        Assert.Equal(response.Iterations, investigateEntries.Count);
+        Assert.All(investigateEntries, e => Assert.Equal(200, e.StatusCode));
+        Assert.All(investigateEntries, e => Assert.Equal("NODE-003", e.NodeId));
+    }
+
+    [Fact]
     public async Task NodeId_Missing_Returns400()
     {
         await using var app = new WebApplicationFactory<Program>();
