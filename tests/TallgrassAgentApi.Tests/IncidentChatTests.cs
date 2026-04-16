@@ -44,7 +44,8 @@ public class IncidentChatTests
             .AddInMemoryCollection(new Dictionary<string, string?> { ["Anthropic:ApiKey"] = "test" })
             .Build();
         var store = new InMemoryConversationStore();
-        var svc   = new ChatService(new HttpClient(handler), config, store,
+        var audit = new AuditService();
+        var svc   = new ChatService(new HttpClient(handler), audit, config, store,
                         NullLogger<ChatService>.Instance);
         return (svc, store);
     }
@@ -180,7 +181,7 @@ public class IncidentChatTests
     {
         var config = new ConfigurationBuilder().AddEnvironmentVariables().Build();
         var store  = new InMemoryConversationStore();
-        var svc    = new ChatService(new HttpClient(), config, store,
+        var svc    = new ChatService(new HttpClient(), new AuditService(), config, store,
                          NullLogger<ChatService>.Instance);
 
         var r1 = await svc.SendAsync("INC-LIVE", "NODE-003",

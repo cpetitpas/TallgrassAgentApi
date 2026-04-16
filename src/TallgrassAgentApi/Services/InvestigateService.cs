@@ -7,6 +7,7 @@ namespace TallgrassAgentApi.Services;
 public class InvestigateService : IInvestigateService
 {
     private readonly HttpClient      _http;
+    private readonly IAuditService   _audit;
     private readonly IConfiguration  _config;
     private readonly ILogger<InvestigateService> _logger;
     private const int MaxIterations = 8;
@@ -20,10 +21,12 @@ public class InvestigateService : IInvestigateService
 
     public InvestigateService(
         HttpClient http,
+        IAuditService audit,
         IConfiguration config,
         ILogger<InvestigateService> logger)
     {
         _http   = http;
+        _audit  = audit;
         _config = config;
         _logger = logger;
     }
@@ -90,11 +93,26 @@ public class InvestigateService : IInvestigateService
             httpRequest.Headers.Add("anthropic-version", "2023-06-01");
             httpRequest.Content = content;
 
+            var started = DateTimeOffset.UtcNow;
             using var httpResponse = await _http.SendAsync(httpRequest, cancellationToken);
             var responseJson = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
+            var elapsedMs = (long)(DateTimeOffset.UtcNow - started).TotalMilliseconds;
 
             if (!httpResponse.IsSuccessStatusCode)
             {
+                _audit.Record(new AuditEntry
+                {
+                    Kind = AuditEntryKind.Investigate,
+                    NodeId = request.NodeId,
+                    PromptHash = PromptHasher.Hash(json),
+                    InputTokens = 0,
+                    OutputTokens = 0,
+                    ElapsedMs = elapsedMs,
+                    Model = "claude-opus-4-6",
+                    UsedTools = false,
+                    StatusCode = (int)httpResponse.StatusCode
+                });
+
                 _logger.LogError("Anthropic API error {Status}: {Body}",
                     (int)httpResponse.StatusCode, responseJson);
                 throw new HttpRequestException(
@@ -107,6 +125,28 @@ public class InvestigateService : IInvestigateService
             var root        = doc.RootElement;
             var stopReason  = root.GetProperty("stop_reason").GetString();
             var contentArr  = root.GetProperty("content");
+            var usage       = root.TryGetProperty("usage", out var usageEl) ? usageEl : default;
+            var inputTokens = usage.ValueKind == JsonValueKind.Object && usage.TryGetProperty("input_tokens", out var inEl)
+                ? inEl.GetInt32()
+                : 0;
+            var outputTokens = usage.ValueKind == JsonValueKind.Object && usage.TryGetProperty("output_tokens", out var outEl)
+                ? outEl.GetInt32()
+                : 0;
+            var usedTools = contentArr.EnumerateArray()
+                .Any(block => block.TryGetProperty("type", out var t) && t.GetString() == "tool_use");
+
+            _audit.Record(new AuditEntry
+            {
+                Kind = AuditEntryKind.Investigate,
+                NodeId = request.NodeId,
+                PromptHash = PromptHasher.Hash(json),
+                InputTokens = inputTokens,
+                OutputTokens = outputTokens,
+                ElapsedMs = elapsedMs,
+                Model = "claude-opus-4-6",
+                UsedTools = usedTools,
+                StatusCode = (int)httpResponse.StatusCode
+            });
 
             // Collect all blocks in this turn
             var assistantBlocks = new List<object>();

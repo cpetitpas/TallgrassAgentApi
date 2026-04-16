@@ -7,19 +7,27 @@ namespace TallgrassAgentApi.Services;
 public class ClaudeService : IClaudeService
 {
     private readonly HttpClient _httpClient;
+    private readonly IAuditService _audit;
     private readonly string _apiKey;
     private const string ApiUrl = "https://api.anthropic.com/v1/messages";
     private const string Model = "claude-opus-4-6";  // Tallgrass is using this model
 
     // The IHttpClientFactory injects HttpClient for us (registered in Program.cs)
-    public ClaudeService(IHttpClientFactory httpClientFactory, IConfiguration config)
+    public ClaudeService(IHttpClientFactory httpClientFactory, IConfiguration config, IAuditService audit)
     {
         _httpClient = httpClientFactory.CreateClient();
         _apiKey = config["Anthropic:ApiKey"] ?? throw new Exception("Anthropic API key not configured");
+        _audit = audit;
     }
 
-    private async Task<string> SendToClaudeAsync(string prompt, CancellationToken ct, int maxTokens = 512)
+    private async Task<string> SendToClaudeAsync(
+        string prompt,
+        AuditEntryKind kind,
+        string nodeId,
+        CancellationToken ct,
+        int maxTokens = 512)
     {
+        var started = DateTimeOffset.UtcNow;
         var requestBody = new
         {
             model = Model,
@@ -38,10 +46,25 @@ public class ClaudeService : IClaudeService
         _httpClient.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
 
         var response = await _httpClient.PostAsync(ApiUrl, content, ct);
+        var elapsedMs = (long)(DateTimeOffset.UtcNow - started).TotalMilliseconds;
 
         if (!response.IsSuccessStatusCode)
         {
             var errorBody = await response.Content.ReadAsStringAsync();
+
+            _audit.Record(new AuditEntry
+            {
+                Kind = kind,
+                NodeId = nodeId,
+                PromptHash = PromptHasher.Hash(prompt),
+                InputTokens = 0,
+                OutputTokens = 0,
+                ElapsedMs = elapsedMs,
+                Model = Model,
+                UsedTools = false,
+                StatusCode = (int)response.StatusCode
+            });
+
             throw new Exception($"Anthropic API error {(int)response.StatusCode}: {errorBody}");
         }
 
@@ -59,6 +82,23 @@ public class ClaudeService : IClaudeService
             text = text.Substring(text.IndexOf('\n') + 1);
             text = text.Substring(0, text.LastIndexOf("```")).Trim();
         }
+
+        var usage = doc.RootElement.GetProperty("usage");
+        var inputTokens = usage.GetProperty("input_tokens").GetInt32();
+        var outputTokens = usage.GetProperty("output_tokens").GetInt32();
+
+        _audit.Record(new AuditEntry
+        {
+            Kind = kind,
+            NodeId = nodeId,
+            PromptHash = PromptHasher.Hash(prompt),
+            InputTokens = inputTokens,
+            OutputTokens = outputTokens,
+            ElapsedMs = elapsedMs,
+            Model = Model,
+            UsedTools = false,
+            StatusCode = (int)response.StatusCode
+        });
 
         return text;
     }
@@ -82,7 +122,7 @@ public class ClaudeService : IClaudeService
             Respond ONLY with the JSON object. No explanation, no markdown, just JSON.
             """;
 
-        return await SendToClaudeAsync(prompt, ct);
+        return await SendToClaudeAsync(prompt, AuditEntryKind.Alarm, alarm.NodeId, ct);
     }
 
     public async Task<string> AnalyzeFlowAsync(FlowRequest flow, CancellationToken ct = default)
@@ -111,7 +151,7 @@ public class ClaudeService : IClaudeService
             Respond ONLY with the JSON object. No explanation, no markdown, just JSON.
             """;
 
-        return await SendToClaudeAsync(prompt, ct);
+        return await SendToClaudeAsync(prompt, AuditEntryKind.Flow, flow.NodeId, ct);
     }
 
     public async Task<string> AnalyzeMultiNodeAsync(MultiNodeRequest request, CancellationToken ct = default)
@@ -153,6 +193,6 @@ public class ClaudeService : IClaudeService
         Return raw JSON only with no additional text.
         """;
 
-        return await SendToClaudeAsync(prompt, ct, maxTokens: 1024);
+        return await SendToClaudeAsync(prompt, AuditEntryKind.MultiNode, request.RegionId, ct, maxTokens: 1024);
     }
 }

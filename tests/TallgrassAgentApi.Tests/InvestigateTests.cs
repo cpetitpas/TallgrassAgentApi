@@ -72,8 +72,9 @@ public class InvestigateTests
             .Build();
 
         var http   = new HttpClient(handler);
+        var audit  = new AuditService();
         var logger = NullLogger<InvestigateService>.Instance; // Microsoft.Extensions.Logging.Abstractions
-        return new InvestigateService(http, config, logger);
+        return new InvestigateService(http, audit, config, logger);
     }
 
     [Fact]
@@ -137,6 +138,7 @@ public class InvestigateTests
 
         var svc = new InvestigateService(
             new HttpClient(),
+            new AuditService(),
             config,
             NullLogger<InvestigateService>.Instance);
 
