@@ -8,9 +8,9 @@ public record AuditEntry
     public DateTimeOffset Timestamp    { get; init; } = DateTimeOffset.UtcNow;
     public AuditEntryKind Kind         { get; init; }
     public string         NodeId       { get; init; } = "";
-    public string?        IncidentId   { get; init; }          // Chat / Investigate only
-
-    // Prompt fingerprint — SHA-256 of the user content, first 16 hex chars
+    public string?        IncidentId   { get; init; } = "";    // Optional incident/case identifier when the caller has one
+    // Prompt/request fingerprint — caller-provided SHA-256-based hash (typically first 16 hex chars)
+    // of the content being audited, which may be either user content or a full serialized request payload.
     public string         PromptHash   { get; init; } = "";
 
     // Token usage direct from the Anthropic response
