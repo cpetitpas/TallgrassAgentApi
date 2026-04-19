@@ -72,8 +72,9 @@ public class InvestigateTests
             .Build();
 
         var http   = new HttpClient(handler);
+        var audit  = new AuditService();
         var logger = NullLogger<InvestigateService>.Instance; // Microsoft.Extensions.Logging.Abstractions
-        return new InvestigateService(http, config, logger);
+        return new InvestigateService(http, audit, config, logger);
     }
 
     [Fact]
@@ -93,6 +94,40 @@ public class InvestigateTests
         Assert.Contains("get_node_spec", response.ToolsInvoked);
         Assert.Equal(2, response.Iterations);
         Assert.False(string.IsNullOrEmpty(response.Conclusion));
+    }
+
+    [Fact]
+    public async Task Audit_RecordsOneEntryPerIteration()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Anthropic:ApiKey"] = "test-key"
+            })
+            .Build();
+
+        var audit = new AuditService();
+        var svc = new InvestigateService(
+            new HttpClient(new FakeAnthropicHandler()),
+            audit,
+            config,
+            NullLogger<InvestigateService>.Instance);
+
+        var response = await svc.InvestigateAsync(new InvestigateRequest
+        {
+            NodeId = "NODE-003",
+            AlarmType = "HIGH_PRESSURE",
+            SensorValue = 1290,
+            Unit = "PSI"
+        });
+
+        var investigateEntries = audit.GetRecent(10)
+            .Where(e => e.Kind == AuditEntryKind.Investigate)
+            .ToList();
+
+        Assert.Equal(response.Iterations, investigateEntries.Count);
+        Assert.All(investigateEntries, e => Assert.Equal(200, e.StatusCode));
+        Assert.All(investigateEntries, e => Assert.Equal("NODE-003", e.NodeId));
     }
 
     [Fact]
@@ -137,6 +172,7 @@ public class InvestigateTests
 
         var svc = new InvestigateService(
             new HttpClient(),
+            new AuditService(),
             config,
             NullLogger<InvestigateService>.Instance);
 

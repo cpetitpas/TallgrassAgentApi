@@ -8,6 +8,7 @@ namespace TallgrassAgentApi.Services;
 public class ChatService : IChatService
 {
     private readonly HttpClient                 _http;
+    private readonly IAuditService              _audit;
     private readonly IConfiguration             _config;
     private readonly IConversationStore         _store;
     private readonly ILogger<ChatService>       _logger;
@@ -30,11 +31,13 @@ public class ChatService : IChatService
 
     public ChatService(
         HttpClient           http,
+        IAuditService        audit,
         IConfiguration       config,
         IConversationStore   store,
         ILogger<ChatService> logger)
     {
         _http   = http;
+        _audit  = audit;
         _config = config;
         _store  = store;
         _logger = logger;
@@ -85,11 +88,27 @@ public class ChatService : IChatService
         httpRequest.Headers.Add("anthropic-version", "2023-06-01");
         httpRequest.Content = httpContent;
 
+        var started = DateTimeOffset.UtcNow;
         using var httpResponse = await _http.SendAsync(httpRequest, cancellationToken);
         var responseJson = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
+        var elapsedMs = (long)(DateTimeOffset.UtcNow - started).TotalMilliseconds;
 
         if (!httpResponse.IsSuccessStatusCode)
         {
+            _audit.Record(new AuditEntry
+            {
+                Kind = AuditEntryKind.Chat,
+                NodeId = nodeId,
+                IncidentId = incidentId,
+                PromptHash = PromptHasher.Hash(json),
+                InputTokens = 0,
+                OutputTokens = 0,
+                ElapsedMs = elapsedMs,
+                Model = "claude-opus-4-6",
+                UsedTools = false,
+                StatusCode = (int)httpResponse.StatusCode
+            });
+
             _logger.LogError("Anthropic API error {Status}: {Body}",
                 (int)httpResponse.StatusCode, responseJson);
             throw new HttpRequestException(
@@ -117,6 +136,28 @@ public class ChatService : IChatService
             }
         }
         var replyText = replyBuilder.ToString();
+
+        var usage = doc.RootElement.TryGetProperty("usage", out var usageEl) ? usageEl : default;
+        var inputTokens = usage.ValueKind == JsonValueKind.Object && usage.TryGetProperty("input_tokens", out var inEl)
+            ? inEl.GetInt32()
+            : 0;
+        var outputTokens = usage.ValueKind == JsonValueKind.Object && usage.TryGetProperty("output_tokens", out var outEl)
+            ? outEl.GetInt32()
+            : 0;
+
+        _audit.Record(new AuditEntry
+        {
+            Kind = AuditEntryKind.Chat,
+            NodeId = nodeId,
+            IncidentId = incidentId,
+            PromptHash = PromptHasher.Hash(json),
+            InputTokens = inputTokens,
+            OutputTokens = outputTokens,
+            ElapsedMs = elapsedMs,
+            Model = "claude-opus-4-6",
+            UsedTools = false,
+            StatusCode = (int)httpResponse.StatusCode
+        });
 
         // Append assistant reply
         var assistantMessage = new ChatMessage

@@ -7,19 +7,27 @@ namespace TallgrassAgentApi.Services;
 public class ClaudeService : IClaudeService
 {
     private readonly HttpClient _httpClient;
+    private readonly IAuditService _audit;
     private readonly string _apiKey;
     private const string ApiUrl = "https://api.anthropic.com/v1/messages";
     private const string Model = "claude-opus-4-6";  // Tallgrass is using this model
 
     // The IHttpClientFactory injects HttpClient for us (registered in Program.cs)
-    public ClaudeService(IHttpClientFactory httpClientFactory, IConfiguration config)
+    public ClaudeService(IHttpClientFactory httpClientFactory, IConfiguration config, IAuditService audit)
     {
         _httpClient = httpClientFactory.CreateClient();
         _apiKey = config["Anthropic:ApiKey"] ?? throw new Exception("Anthropic API key not configured");
+        _audit = audit;
     }
 
-    private async Task<string> SendToClaudeAsync(string prompt, CancellationToken ct, int maxTokens = 512)
+    private async Task<string> SendToClaudeAsync(
+        string prompt,
+        AuditEntryKind kind,
+        string nodeId,
+        CancellationToken ct,
+        int maxTokens = 512)
     {
+        var started = DateTimeOffset.UtcNow;
         var requestBody = new
         {
             model = Model,
@@ -33,32 +41,87 @@ public class ClaudeService : IClaudeService
         var json = JsonSerializer.Serialize(requestBody);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        _httpClient.DefaultRequestHeaders.Clear();
-        _httpClient.DefaultRequestHeaders.Add("x-api-key", _apiKey);
-        _httpClient.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, ApiUrl);
+        httpRequest.Headers.Add("x-api-key", _apiKey);
+        httpRequest.Headers.Add("anthropic-version", "2023-06-01");
+        httpRequest.Content = content;
 
-        var response = await _httpClient.PostAsync(ApiUrl, content, ct);
+        var response = await _httpClient.SendAsync(httpRequest, ct);
+        var elapsedMs = (long)(DateTimeOffset.UtcNow - started).TotalMilliseconds;
 
         if (!response.IsSuccessStatusCode)
         {
             var errorBody = await response.Content.ReadAsStringAsync();
+
+            _audit.Record(new AuditEntry
+            {
+                Kind = kind,
+                NodeId = nodeId,
+                PromptHash = PromptHasher.Hash(prompt),
+                InputTokens = 0,
+                OutputTokens = 0,
+                ElapsedMs = elapsedMs,
+                Model = Model,
+                UsedTools = false,
+                StatusCode = (int)response.StatusCode
+            });
+
             throw new Exception($"Anthropic API error {(int)response.StatusCode}: {errorBody}");
         }
 
         var responseJson = await response.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(responseJson);
-        var text = doc.RootElement
-            .GetProperty("content")[0]
-            .GetProperty("text")
-            .GetString() ?? "";
+        var root = doc.RootElement;
+
+        var text = "";
+        if (root.TryGetProperty("content", out var contentArray) &&
+            contentArray.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var block in contentArray.EnumerateArray())
+            {
+                if (block.ValueKind != JsonValueKind.Object)
+                    continue;
+
+                if (block.TryGetProperty("type", out var typeEl) &&
+                    string.Equals(typeEl.GetString(), "text", StringComparison.Ordinal) &&
+                    block.TryGetProperty("text", out var textEl))
+                {
+                    text = textEl.GetString() ?? "";
+                    break;
+                }
+            }
+        }
 
         // Strip markdown code fences if Claude wrapped the JSON despite instructions
         text = text.Trim();
         if (text.StartsWith("```"))
         {
-            text = text.Substring(text.IndexOf('\n') + 1);
-            text = text.Substring(0, text.LastIndexOf("```")).Trim();
+            var firstNewLine = text.IndexOf('\n');
+            var lastFence = text.LastIndexOf("```", StringComparison.Ordinal);
+            if (firstNewLine >= 0 && lastFence > firstNewLine)
+                text = text[(firstNewLine + 1)..lastFence].Trim();
         }
+
+        var usage = root.TryGetProperty("usage", out var usageEl) ? usageEl : default;
+        var inputTokens = usage.ValueKind == JsonValueKind.Object && usage.TryGetProperty("input_tokens", out var inEl)
+            ? inEl.GetInt32()
+            : 0;
+        var outputTokens = usage.ValueKind == JsonValueKind.Object && usage.TryGetProperty("output_tokens", out var outEl)
+            ? outEl.GetInt32()
+            : 0;
+
+        _audit.Record(new AuditEntry
+        {
+            Kind = kind,
+            NodeId = nodeId,
+            PromptHash = PromptHasher.Hash(prompt),
+            InputTokens = inputTokens,
+            OutputTokens = outputTokens,
+            ElapsedMs = elapsedMs,
+            Model = Model,
+            UsedTools = false,
+            StatusCode = (int)response.StatusCode
+        });
 
         return text;
     }
@@ -82,7 +145,7 @@ public class ClaudeService : IClaudeService
             Respond ONLY with the JSON object. No explanation, no markdown, just JSON.
             """;
 
-        return await SendToClaudeAsync(prompt, ct);
+        return await SendToClaudeAsync(prompt, AuditEntryKind.Alarm, alarm.NodeId, ct);
     }
 
     public async Task<string> AnalyzeFlowAsync(FlowRequest flow, CancellationToken ct = default)
@@ -111,7 +174,7 @@ public class ClaudeService : IClaudeService
             Respond ONLY with the JSON object. No explanation, no markdown, just JSON.
             """;
 
-        return await SendToClaudeAsync(prompt, ct);
+        return await SendToClaudeAsync(prompt, AuditEntryKind.Flow, flow.NodeId, ct);
     }
 
     public async Task<string> AnalyzeMultiNodeAsync(MultiNodeRequest request, CancellationToken ct = default)
@@ -153,6 +216,6 @@ public class ClaudeService : IClaudeService
         Return raw JSON only with no additional text.
         """;
 
-        return await SendToClaudeAsync(prompt, ct, maxTokens: 1024);
+        return await SendToClaudeAsync(prompt, AuditEntryKind.MultiNode, request.RegionId, ct, maxTokens: 1024);
     }
 }

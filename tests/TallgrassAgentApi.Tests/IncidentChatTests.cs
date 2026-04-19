@@ -38,14 +38,21 @@ public class FakeChatHttpHandler : HttpMessageHandler
 
 public class IncidentChatTests
 {
-    private static (ChatService svc, IConversationStore store) Build(HttpMessageHandler handler)
+    private static (ChatService svc, IConversationStore store, AuditService audit) BuildWithAudit(HttpMessageHandler handler)
     {
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> { ["Anthropic:ApiKey"] = "test" })
             .Build();
         var store = new InMemoryConversationStore();
-        var svc   = new ChatService(new HttpClient(handler), config, store,
+        var audit = new AuditService();
+        var svc   = new ChatService(new HttpClient(handler), audit, config, store,
                         NullLogger<ChatService>.Instance);
+        return (svc, store, audit);
+    }
+
+    private static (ChatService svc, IConversationStore store) Build(HttpMessageHandler handler)
+    {
+        var (svc, store, _) = BuildWithAudit(handler);
         return (svc, store);
     }
 
@@ -79,6 +86,25 @@ public class IncidentChatTests
         Assert.Equal(3, handler.CallCount);
         var state = store.Get("INC-002");
         Assert.Equal(6, state!.Messages.Count); // 3 user + 3 assistant
+    }
+
+    [Fact]
+    public async Task Audit_RecordsOneEntryPerTurn()
+    {
+        var handler = new FakeChatHttpHandler();
+        var (svc, _, audit) = BuildWithAudit(handler);
+
+        await svc.SendAsync("INC-AUDIT", "NODE-003", new ChatRequest { Message = "Turn one" });
+        await svc.SendAsync("INC-AUDIT", "NODE-003", new ChatRequest { Message = "Turn two" });
+
+        var recent = audit.GetRecent(10)
+            .Where(e => e.Kind == AuditEntryKind.Chat)
+            .ToList();
+
+        Assert.Equal(2, recent.Count);
+        Assert.All(recent, e => Assert.Equal(200, e.StatusCode));
+        Assert.All(recent, e => Assert.Equal("INC-AUDIT", e.IncidentId));
+        Assert.All(recent, e => Assert.Equal("NODE-003", e.NodeId));
     }
 
     [Fact]
@@ -180,7 +206,7 @@ public class IncidentChatTests
     {
         var config = new ConfigurationBuilder().AddEnvironmentVariables().Build();
         var store  = new InMemoryConversationStore();
-        var svc    = new ChatService(new HttpClient(), config, store,
+        var svc    = new ChatService(new HttpClient(), new AuditService(), config, store,
                          NullLogger<ChatService>.Instance);
 
         var r1 = await svc.SendAsync("INC-LIVE", "NODE-003",
