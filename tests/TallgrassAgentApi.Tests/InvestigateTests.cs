@@ -72,9 +72,10 @@ public class InvestigateTests
             .Build();
 
         var http   = new HttpClient(handler);
+        var throttle = new ClaudeThrottle(config);
         var audit  = new AuditService();
         var logger = NullLogger<InvestigateService>.Instance; // Microsoft.Extensions.Logging.Abstractions
-        return new InvestigateService(http, audit, config, logger);
+        return new InvestigateService(http, throttle, audit, config, logger);
     }
 
     [Fact]
@@ -109,6 +110,7 @@ public class InvestigateTests
         var audit = new AuditService();
         var svc = new InvestigateService(
             new HttpClient(new FakeAnthropicHandler()),
+            new ClaudeThrottle(config),
             audit,
             config,
             NullLogger<InvestigateService>.Instance);
@@ -172,6 +174,7 @@ public class InvestigateTests
 
         var svc = new InvestigateService(
             new HttpClient(),
+            new ClaudeThrottle(config),
             new AuditService(),
             config,
             NullLogger<InvestigateService>.Instance);

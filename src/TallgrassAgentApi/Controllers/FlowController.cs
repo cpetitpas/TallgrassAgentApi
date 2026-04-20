@@ -24,7 +24,19 @@ public class FlowController : ControllerBase
             ? ((request.FlowRate - request.ExpectedFlowRate) / request.ExpectedFlowRate) * 100
             : 0;
 
-        var rawResponse = await _claudeService.AnalyzeFlowAsync(request, cancellationToken);
+        string rawResponse;
+        try
+        {
+            rawResponse = await _claudeService.AnalyzeFlowAsync(request, cancellationToken);
+        }
+        catch (ThrottleRejectedException ex)
+        {
+            return StatusCode(503, ex.Message);
+        }
+        catch (HttpRequestException ex)
+        {
+            return StatusCode(502, ex.Message);
+        }
 
         try
         {

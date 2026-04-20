@@ -8,6 +8,7 @@ builder.Services.AddHttpClient();  // gives us HttpClient to call external APIs
 builder.Services.AddScoped<IClaudeService, ClaudeService>();
 builder.Services.AddHttpClient<IInvestigateService, InvestigateService>();  // service for investigation workflows
 builder.Services.AddHttpClient<IChatService, ChatService>();
+builder.Services.AddSingleton<ClaudeThrottle>();
 builder.Services.AddSingleton<IAuditService, AuditService>();
 builder.Services.AddSingleton<IConversationStore, InMemoryConversationStore>();
 

@@ -7,17 +7,19 @@ namespace TallgrassAgentApi.Services;
 public class ClaudeService : IClaudeService
 {
     private readonly HttpClient _httpClient;
+    private readonly ClaudeThrottle _throttle;
     private readonly IAuditService _audit;
     private readonly string _apiKey;
     private const string ApiUrl = "https://api.anthropic.com/v1/messages";
     private const string Model = "claude-opus-4-6";  // Tallgrass is using this model
 
     // The IHttpClientFactory injects HttpClient for us (registered in Program.cs)
-    public ClaudeService(IHttpClientFactory httpClientFactory, IConfiguration config, IAuditService audit)
+    public ClaudeService(IHttpClientFactory httpClientFactory, IConfiguration config, IAuditService audit, ClaudeThrottle throttle)
     {
         _httpClient = httpClientFactory.CreateClient();
         _apiKey = config["Anthropic:ApiKey"] ?? throw new Exception("Anthropic API key not configured");
         _audit = audit;
+        _throttle = throttle;
     }
 
     private async Task<string> SendToClaudeAsync(

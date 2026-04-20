@@ -45,6 +45,10 @@ public class IncidentChatController : ControllerBase
             var response = await _chat.SendAsync(incidentId, nodeId, request, cancellationToken);
             return Ok(response);
         }
+        catch (ThrottleRejectedException ex)
+        {
+            return StatusCode(503, ex.Message);
+        }
         catch (HttpRequestException ex)
         {
             return StatusCode(502, ex.Message);
