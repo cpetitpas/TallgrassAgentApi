@@ -113,6 +113,7 @@ public class DiagnosticsTests
         using var doc = JsonDocument.Parse(body);
         // MaxConcurrent should match appsettings value of 3
         Assert.Equal(3, doc.RootElement.GetProperty("maxConcurrent").GetInt32());
+        Assert.Equal(3, doc.RootElement.GetProperty("nodeParallelism").GetInt32());
         Assert.False(doc.RootElement.GetProperty("isThrottled").GetBoolean());
     }
 }
