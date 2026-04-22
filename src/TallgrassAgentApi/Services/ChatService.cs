@@ -1,4 +1,3 @@
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using TallgrassAgentApi.Models;
@@ -8,6 +7,7 @@ namespace TallgrassAgentApi.Services;
 public class ChatService : IChatService
 {
     private readonly HttpClient                 _http;
+    private readonly ClaudeThrottle             _throttle;
     private readonly IAuditService              _audit;
     private readonly IConfiguration             _config;
     private readonly IConversationStore         _store;
@@ -31,12 +31,14 @@ public class ChatService : IChatService
 
     public ChatService(
         HttpClient           http,
+        ClaudeThrottle       throttle,
         IAuditService        audit,
         IConfiguration       config,
         IConversationStore   store,
         ILogger<ChatService> logger)
     {
         _http   = http;
+        _throttle = throttle;
         _audit  = audit;
         _config = config;
         _store  = store;
@@ -89,6 +91,7 @@ public class ChatService : IChatService
         httpRequest.Content = httpContent;
 
         var started = DateTimeOffset.UtcNow;
+        using var throttleLease = await _throttle.AcquireAsync(cancellationToken);
         using var httpResponse = await _http.SendAsync(httpRequest, cancellationToken);
         var responseJson = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
         var elapsedMs = (long)(DateTimeOffset.UtcNow - started).TotalMilliseconds;

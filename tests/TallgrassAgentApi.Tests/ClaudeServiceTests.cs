@@ -22,7 +22,7 @@ public class ClaudeServiceTests
             })
             .Build();
 
-        return new ClaudeService(factory, config, audit);
+        return new ClaudeService(factory, config, audit, new ClaudeThrottle(config));
     }
 
     [Fact]

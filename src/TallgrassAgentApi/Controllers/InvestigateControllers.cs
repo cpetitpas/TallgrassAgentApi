@@ -22,7 +22,18 @@ public class InvestigateController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.AlarmType))
             return BadRequest("AlarmType is required.");
 
-        var result = await _svc.InvestigateAsync(request, cancellationToken);
-        return Ok(result);
+        try
+        {
+            var result = await _svc.InvestigateAsync(request, cancellationToken);
+            return Ok(result);
+        }
+        catch (ThrottleRejectedException ex)
+        {
+            return StatusCode(503, ex.Message);
+        }
+        catch (HttpRequestException ex)
+        {
+            return StatusCode(502, ex.Message);
+        }
     }
 }
