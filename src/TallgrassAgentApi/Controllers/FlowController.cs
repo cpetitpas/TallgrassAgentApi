@@ -37,6 +37,10 @@ public class FlowController : ControllerBase
         {
             return StatusCode(502, ex.Message);
         }
+        catch (Exception ex)
+        {
+            return StatusCode(502, ex.Message);
+        }
 
         try
         {

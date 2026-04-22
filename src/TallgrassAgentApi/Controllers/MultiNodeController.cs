@@ -36,6 +36,10 @@ public class MultiNodeController : ControllerBase
         {
             return StatusCode(502, ex.Message);
         }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return StatusCode(502, ex.Message);
+        }
 
         try
         {

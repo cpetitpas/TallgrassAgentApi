@@ -96,8 +96,8 @@ public class InvestigateService : IInvestigateService
             httpRequest.Headers.Add("anthropic-version", "2023-06-01");
             httpRequest.Content = content;
 
-            using var throttleLease = await _throttle.AcquireAsync(cancellationToken);
             var started = DateTimeOffset.UtcNow;
+            using var throttleLease = await _throttle.AcquireAsync(cancellationToken);
             using var httpResponse = await _http.SendAsync(httpRequest, cancellationToken);
             var responseJson = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
             var elapsedMs = (long)(DateTimeOffset.UtcNow - started).TotalMilliseconds;

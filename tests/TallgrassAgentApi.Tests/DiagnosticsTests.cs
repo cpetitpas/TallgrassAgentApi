@@ -78,7 +78,7 @@ public class DiagnosticsTests
         var slot = await throttle.AcquireAsync();
 
         // Start a second acquire in background — it will wait
-        var waiterTask = Task.Run(() => throttle.AcquireAsync());
+        var waiterTask = Task.Run(async () => await throttle.AcquireAsync());
         await Task.Delay(50); // give it time to enter the wait
 
         Assert.Equal(1, throttle.Snapshot().WaitingCalls);

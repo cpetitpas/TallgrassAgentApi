@@ -40,6 +40,10 @@ public class AlarmController : ControllerBase
         {
             return StatusCode(502, ex.Message);
         }
+        catch (Exception ex)
+        {
+            return StatusCode(502, ex.Message);
+        }
 
         // Claude was told to return JSON — parse it into our response model
         try

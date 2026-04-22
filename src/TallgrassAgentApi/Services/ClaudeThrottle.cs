@@ -17,7 +17,18 @@ public class ClaudeThrottle
     {
         _maxConcurrent = config.GetValue<int>("ClaudeThrottle:MaxConcurrent", 3);
         _maxWaitMs     = config.GetValue<int>("ClaudeThrottle:MaxWaitMs",     8000);
-        _semaphore     = new SemaphoreSlim(_maxConcurrent, _maxConcurrent);
+       
+        if (_maxConcurrent <= 0)
+        {
+            throw new InvalidOperationException(
+                $"Configuration value 'ClaudeThrottle:MaxConcurrent' must be greater than 0, but was {_maxConcurrent}.");
+        }
+        if (_maxWaitMs < -1)
+        {
+            throw new InvalidOperationException(
+                $"Configuration value 'ClaudeThrottle:MaxWaitMs' must be greater than or equal to -1, but was {_maxWaitMs}.");
+        }
+        _semaphore = new SemaphoreSlim(_maxConcurrent, _maxConcurrent);
     }
 
     /// <summary>
