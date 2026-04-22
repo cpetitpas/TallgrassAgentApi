@@ -136,7 +136,7 @@ public class IncidentChatTests
     [Fact]
     public async Task EmptyMessage_IsRejectedByController()
     {
-        await using var app    = new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program>();
+        await using var app    = TestWebHostFactory.CreateQuietFactory();
         var client             = app.CreateClient();
 
         var resp = await client.PostAsync(

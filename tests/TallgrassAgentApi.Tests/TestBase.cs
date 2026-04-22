@@ -15,7 +15,7 @@ public abstract class TestBase : IClassFixture<WebApplicationFactory<Program>>
 
     protected TestBase(WebApplicationFactory<Program> factory)
     {
-        Client = factory.WithWebHostBuilder(builder =>
+        Client = factory.WithQuietHost(builder =>
         {
             builder.ConfigureServices(services =>
             {

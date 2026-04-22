@@ -137,7 +137,7 @@ public class MultiNodeInvestigateTests
     [Fact]
     public async Task Endpoint_ReturnsBadRequest_ForSingleNode()
     {
-        await using var app = new WebApplicationFactory<Program>();
+        await using var app = TestWebHostFactory.CreateQuietFactory();
         var client = app.CreateClient();
 
         var resp = await client.PostAsync(
@@ -152,7 +152,7 @@ public class MultiNodeInvestigateTests
     [Fact]
     public async Task Endpoint_ReturnsBadRequest_ForMoreThan10Nodes()
     {
-        await using var app = new WebApplicationFactory<Program>();
+        await using var app = TestWebHostFactory.CreateQuietFactory();
         var client = app.CreateClient();
 
         var nodes = Enumerable.Range(1, 11).Select(i => new

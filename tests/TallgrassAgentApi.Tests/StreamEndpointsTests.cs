@@ -20,7 +20,7 @@ public class StreamEndpointTests : IClassFixture<WebApplicationFactory<Program>>
 
     public StreamEndpointTests(WebApplicationFactory<Program> factory)
     {
-        _factory = factory.WithWebHostBuilder(builder =>
+        _factory = factory.WithQuietHost(builder =>
         {
             builder.ConfigureServices(services =>
             {

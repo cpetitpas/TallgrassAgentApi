@@ -135,7 +135,7 @@ public class InvestigateTests
     [Fact]
     public async Task NodeId_Missing_Returns400()
     {
-        await using var app = new WebApplicationFactory<Program>();
+        await using var app = TestWebHostFactory.CreateQuietFactory();
         var client = app.CreateClient();
 
         var resp = await client.PostAsync("/api/alarm/investigate",

@@ -33,7 +33,7 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
     public IntegrationTests(WebApplicationFactory<Program> factory)
     {
         // Load API key from environment variable for tests
-        _client = factory.WithWebHostBuilder(builder =>
+        _client = factory.WithQuietHost(builder =>
         {
             builder.ConfigureAppConfiguration((context, config) =>
             {
