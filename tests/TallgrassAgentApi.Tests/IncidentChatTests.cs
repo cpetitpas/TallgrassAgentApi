@@ -45,7 +45,8 @@ public class IncidentChatTests
             .Build();
         var store = new InMemoryConversationStore();
         var audit = new AuditService();
-        var svc   = new ChatService(new HttpClient(handler), audit, config, store,
+        var throttle = new ClaudeThrottle(config);
+        var svc   = new ChatService(new HttpClient(handler), throttle, audit, config, store,
                         NullLogger<ChatService>.Instance);
         return (svc, store, audit);
     }
@@ -206,7 +207,7 @@ public class IncidentChatTests
     {
         var config = new ConfigurationBuilder().AddEnvironmentVariables().Build();
         var store  = new InMemoryConversationStore();
-        var svc    = new ChatService(new HttpClient(), new AuditService(), config, store,
+        var svc    = new ChatService(new HttpClient(), new ClaudeThrottle(config), new AuditService(), config, store,
                          NullLogger<ChatService>.Instance);
 
         var r1 = await svc.SendAsync("INC-LIVE", "NODE-003",

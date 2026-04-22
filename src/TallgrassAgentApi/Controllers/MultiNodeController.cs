@@ -23,7 +23,23 @@ public class MultiNodeController : ControllerBase
         if (request.Readings == null || request.Readings.Count == 0)
             return BadRequest("At least one node reading is required.");
 
-        var rawResponse = await _claudeService.AnalyzeMultiNodeAsync(request, cancellationToken);
+        string rawResponse;
+        try
+        {
+            rawResponse = await _claudeService.AnalyzeMultiNodeAsync(request, cancellationToken);
+        }
+        catch (ThrottleRejectedException ex)
+        {
+            return StatusCode(503, ex.Message);
+        }
+        catch (HttpRequestException ex)
+        {
+            return StatusCode(502, ex.Message);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return StatusCode(502, ex.Message);
+        }
 
         try
         {

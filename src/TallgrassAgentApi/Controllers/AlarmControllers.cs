@@ -26,8 +26,24 @@ public class AlarmController : ControllerBase
             return BadRequest("NodeId is required.");
         }
 
-        // Call Claude via our service
-        var rawResponse = await _claudeService.AnalyzeAlarmAsync(request, cancellationToken);
+        string rawResponse;
+        try
+        {
+            // Call Claude via our service
+            rawResponse = await _claudeService.AnalyzeAlarmAsync(request, cancellationToken);
+        }
+        catch (ThrottleRejectedException ex)
+        {
+            return StatusCode(503, ex.Message);
+        }
+        catch (HttpRequestException ex)
+        {
+            return StatusCode(502, ex.Message);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(502, ex.Message);
+        }
 
         // Claude was told to return JSON — parse it into our response model
         try

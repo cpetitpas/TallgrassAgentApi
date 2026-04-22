@@ -7,6 +7,7 @@ namespace TallgrassAgentApi.Services;
 public class InvestigateService : IInvestigateService
 {
     private readonly HttpClient      _http;
+    private readonly ClaudeThrottle  _throttle;
     private readonly IAuditService   _audit;
     private readonly IConfiguration  _config;
     private readonly ILogger<InvestigateService> _logger;
@@ -21,11 +22,13 @@ public class InvestigateService : IInvestigateService
 
     public InvestigateService(
         HttpClient http,
+        ClaudeThrottle throttle,
         IAuditService audit,
         IConfiguration config,
         ILogger<InvestigateService> logger)
     {
         _http   = http;
+        _throttle = throttle;
         _audit  = audit;
         _config = config;
         _logger = logger;
@@ -94,6 +97,7 @@ public class InvestigateService : IInvestigateService
             httpRequest.Content = content;
 
             var started = DateTimeOffset.UtcNow;
+            using var throttleLease = await _throttle.AcquireAsync(cancellationToken);
             using var httpResponse = await _http.SendAsync(httpRequest, cancellationToken);
             var responseJson = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
             var elapsedMs = (long)(DateTimeOffset.UtcNow - started).TotalMilliseconds;
