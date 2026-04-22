@@ -17,12 +17,14 @@ namespace TallgrassAgentApi.Tests;
 public class FakeInvestigateService : IInvestigateService
 {
     private static readonly string[] Severities = ["HIGH", "MEDIUM", "LOW"];
-    private int _callCount = 0;
 
     public Task<InvestigateResponse> InvestigateAsync(
         InvestigateRequest request, CancellationToken cancellationToken = default)
     {
-        var idx = Interlocked.Increment(ref _callCount) - 1;
+        // Derive index from the trailing number in the NodeId so the result is
+        // deterministic regardless of the order parallel invocations complete.
+        var numStr = System.Text.RegularExpressions.Regex.Match(request.NodeId, @"\d+$").Value;
+        var idx    = int.TryParse(numStr, out var n) ? n : 0;
         return Task.FromResult(new InvestigateResponse
         {
             NodeId            = request.NodeId,
@@ -114,9 +116,12 @@ public class MultiNodeInvestigateTests
         var (svc, _) = Build();
         var result   = await svc.InvestigateAsync(ThreeNodeRequest());
 
-        // FakeInvestigateService cycles HIGH, MEDIUM, LOW — so NODE-004 (LOW) should be excluded
-        Assert.DoesNotContain("NODE-004", result.AffectedNodes);
-        Assert.Contains("NODE-002", result.AffectedNodes);
+        // FakeInvestigateService maps severity by node number (num % 3):
+        // NODE-002 → idx 2 → LOW  (excluded)
+        // NODE-003 → idx 0 → HIGH (included)
+        // NODE-004 → idx 1 → MEDIUM (included)
+        Assert.DoesNotContain("NODE-002", result.AffectedNodes);
+        Assert.Contains("NODE-003", result.AffectedNodes);
     }
 
     [Fact]
@@ -180,6 +185,7 @@ public class MultiNodeInvestigateTests
 
         var realInvestigate = new InvestigateService(
             new HttpClient(),
+            new ClaudeThrottle(config),
             new AuditService(),
             config,
             NullLogger<InvestigateService>.Instance);

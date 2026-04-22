@@ -42,36 +42,58 @@ public class MultiNodeInvestigateService : IMultiNodeInvestigateService
         MultiNodeInvestigateRequest request,
         CancellationToken cancellationToken = default)
     {
-        // ── Phase 1: parallel per-node investigations ─────────────────────
-        var tasks = request.Nodes.Select(node => _investigateSvc.InvestigateAsync(
-            new InvestigateRequest
-            {
-                NodeId           = node.NodeId,
-                AlarmType        = node.AlarmType,
-                SensorValue      = node.SensorValue,
-                Unit             = node.Unit,
-                AdditionalContext = request.RegionContext
-            }, cancellationToken));
+        // ── Phase 1: bounded-parallel per-node investigations ─────────────
+        // Run at most NodeParallelism investigations concurrently so that the
+        // shared ClaudeThrottle is never stampeded by all nodes at once.
+        int nodeParallelism = _config.GetValue<int>("ClaudeThrottle:NodeParallelism",
+            _config.GetValue<int>("ClaudeThrottle:MaxConcurrent", 3));
 
-        NodeInvestigationResult[] rawResults;
+        var rawResultsBag = new System.Collections.Concurrent.ConcurrentBag<NodeInvestigationResult>();
+
         try
         {
-            var investigateResults = await Task.WhenAll(tasks);
-            rawResults = investigateResults.Select(r => new NodeInvestigationResult
-            {
-                NodeId            = r.NodeId,
-                Conclusion        = r.Conclusion,
-                Severity          = r.Severity,
-                RecommendedAction = r.RecommendedAction,
-                ToolsInvoked      = r.ToolsInvoked,
-                Iterations        = r.Iterations
-            }).ToArray();
+            await Parallel.ForEachAsync(
+                request.Nodes,
+                new ParallelOptions
+                {
+                    MaxDegreeOfParallelism = nodeParallelism,
+                    CancellationToken      = cancellationToken
+                },
+                async (node, ct) =>
+                {
+                    var r = await _investigateSvc.InvestigateAsync(
+                        new InvestigateRequest
+                        {
+                            NodeId            = node.NodeId,
+                            AlarmType         = node.AlarmType,
+                            SensorValue       = node.SensorValue,
+                            Unit              = node.Unit,
+                            AdditionalContext = request.RegionContext
+                        }, ct);
+
+                    rawResultsBag.Add(new NodeInvestigationResult
+                    {
+                        NodeId            = r.NodeId,
+                        Conclusion        = r.Conclusion,
+                        Severity          = r.Severity,
+                        RecommendedAction = r.RecommendedAction,
+                        ToolsInvoked      = r.ToolsInvoked,
+                        Iterations        = r.Iterations
+                    });
+                });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "One or more per-node investigations failed.");
             throw;
         }
+
+        // Preserve original request order for deterministic output
+        var nodeOrder = request.Nodes.Select((n, i) => (n.NodeId, i))
+                                     .ToDictionary(x => x.NodeId, x => x.i);
+        NodeInvestigationResult[] rawResults = rawResultsBag
+            .OrderBy(r => nodeOrder.TryGetValue(r.NodeId, out var idx) ? idx : int.MaxValue)
+            .ToArray();
 
         // ── Phase 2: synthesis call ───────────────────────────────────────
         var synthesis = await SynthesizeAsync(request, rawResults, cancellationToken);
@@ -200,6 +222,14 @@ public class MultiNodeInvestigateService : IMultiNodeInvestigateService
                 .GetString() ?? "";
 
             var trimmed = text.Trim();
+            // Strip markdown code fences if Claude wrapped the JSON despite instructions
+            if (trimmed.StartsWith("```"))
+            {
+                var firstNewLine = trimmed.IndexOf('\n');
+                var lastFence    = trimmed.LastIndexOf("```", StringComparison.Ordinal);
+                if (firstNewLine >= 0 && lastFence > firstNewLine)
+                    trimmed = trimmed[(firstNewLine + 1)..lastFence].Trim();
+            }
             using var ans = JsonDocument.Parse(trimmed);
             var root = ans.RootElement;
 
