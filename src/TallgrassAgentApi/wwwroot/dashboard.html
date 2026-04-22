@@ -838,7 +838,13 @@
 
   <!-- Left: form + result -->
   <div id="inv-form-col">
-    <div class="inv-section-title">Alarm Investigation</div>
+    <div class="inv-section-title" style="display:flex;align-items:center;justify-content:space-between;">
+      <span id="inv-mode-label">Alarm Investigation</span>
+      <div style="display:flex;gap:6px;">
+        <button class="filter-btn active" id="inv-mode-single" style="font-size:11px;padding:3px 10px;">Single Node</button>
+        <button class="filter-btn"        id="inv-mode-multi"  style="font-size:11px;padding:3px 10px;">Multi Node</button>
+      </div>
+    </div>
 
     <div class="inv-form">
 
@@ -888,6 +894,29 @@
 
       <button id="inv-run-btn" class="inv-run-btn">
         <span id="inv-run-label">▶ Run Investigation</span>
+      </button>
+    </div>
+
+    <div id="inv-multi-form" class="inv-form" style="display:none;">
+
+      <div class="inv-field">
+        <label class="inv-label">Region Context <span style="color:var(--dim);font-size:9px;letter-spacing:1px">(optional)</span></label>
+        <input id="inv-region-context" class="inv-input" type="text"
+               placeholder="e.g. Wamsutter Lateral, Wyoming" />
+      </div>
+
+      <div id="inv-node-rows"></div>
+
+      <button id="inv-add-node-btn" style="
+        padding:7px 14px; font-family:'Barlow Condensed',sans-serif;
+        font-size:12px; font-weight:600; letter-spacing:2px; text-transform:uppercase;
+        border:1px dashed var(--border); background:transparent; color:var(--dim);
+        cursor:pointer; transition:all .2s; width:100%;">
+        + Add Node
+      </button>
+
+      <button id="inv-multi-run-btn" class="inv-run-btn">
+        <span id="inv-multi-run-label">▶ Run Multi-Node Investigation</span>
       </button>
     </div>
 
@@ -1321,7 +1350,7 @@ document.getElementById('pause-btn').addEventListener('click', function() {
 });
 
 // ── Feed filter buttons ────────────────────────────────────────────────────
-document.querySelectorAll('.filter-btn').forEach(btn => {
+document.querySelectorAll('.filter-btn[data-filter]').forEach(btn => {
   btn.addEventListener('click', function() {
     document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
     this.classList.add('active');
@@ -1410,6 +1439,228 @@ function refreshNodeIdDropdown() {
   // Re-select previous value if it's still in the list
   if (current && [...sel.options].some(o => o.value === current))
     sel.value = current;
+
+  refreshNodeRowDropdowns();
+}
+
+// ── Multi-node form ────────────────────────────────────────────────────────
+const ALARM_TYPES = [
+  'HIGH_PRESSURE','LOW_PRESSURE','HIGH_FLOW','LOW_FLOW',
+  'HIGH_TEMPERATURE','LEAK_DETECTED','COMMUNICATION_LOSS','VALVE_FAULT'
+];
+const UNITS = ['PSI','MMCFD','°F','°C','GPM'];
+
+let multiNodeRows = [];
+
+function buildNodeRowHtml(idx) {
+  const alarmOpts = ALARM_TYPES.map(t =>
+    `<option value="${t}">${t}</option>`).join('');
+  const unitOpts  = UNITS.map(u =>
+    `<option value="${u}">${u}</option>`).join('');
+
+  return `
+    <div class="inv-node-row" id="inv-row-${idx}"
+         style="border:1px solid var(--border);padding:12px;margin-bottom:8px;position:relative;">
+      <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;
+                  color:var(--accent);margin-bottom:10px;font-weight:600;">
+        Node ${idx + 1}
+        <button onclick="removeNodeRow(${idx})"
+          style="position:absolute;top:10px;right:10px;background:none;border:none;
+                 color:var(--dim);cursor:pointer;font-size:14px;" title="Remove">✕</button>
+      </div>
+      <div class="inv-row" style="margin-bottom:8px;">
+        <div class="inv-field">
+          <label class="inv-label">Node ID</label>
+          <select id="inv-mn-nodeid-${idx}" class="inv-select">
+            <option value="">— select —</option>
+          </select>
+        </div>
+        <div class="inv-field">
+          <label class="inv-label">Alarm Type</label>
+          <select id="inv-mn-alarm-${idx}" class="inv-select">${alarmOpts}</select>
+        </div>
+      </div>
+      <div class="inv-row">
+        <div class="inv-field">
+          <label class="inv-label">Sensor Value</label>
+          <input id="inv-mn-value-${idx}" class="inv-input" type="number" placeholder="1290" step="any" />
+        </div>
+        <div class="inv-field">
+          <label class="inv-label">Unit</label>
+          <select id="inv-mn-unit-${idx}" class="inv-select">${unitOpts}</select>
+        </div>
+      </div>
+    </div>`;
+}
+
+function addNodeRow() {
+  const idx = multiNodeRows.length;
+  multiNodeRows.push(idx);
+  const container = document.getElementById('inv-node-rows');
+  const div = document.createElement('div');
+  div.innerHTML = buildNodeRowHtml(idx);
+  container.appendChild(div.firstElementChild);
+  refreshNodeRowDropdowns();
+}
+
+function removeNodeRow(idx) {
+  const el = document.getElementById(`inv-row-${idx}`);
+  if (el) el.remove();
+  multiNodeRows = multiNodeRows.filter(i => i !== idx);
+}
+
+function refreshNodeRowDropdowns() {
+  const stateOrder = { OFFLINE: 0, DEGRADED: 1, UNKNOWN: 2, HEALTHY: 3 };
+  const entries = Object.values(healthNodes)
+    .sort((a, b) => (stateOrder[a.healthState] ?? 2) - (stateOrder[b.healthState] ?? 2));
+
+  document.querySelectorAll('[id^="inv-mn-nodeid-"]').forEach(sel => {
+    const current = sel.value;
+    sel.innerHTML = '<option value="">— select —</option>';
+    entries.forEach(e => {
+      const opt = document.createElement('option');
+      opt.value = e.nodeId;
+      opt.textContent = e.nodeId;
+      sel.appendChild(opt);
+    });
+    if (current && [...sel.options].some(o => o.value === current))
+      sel.value = current;
+  });
+}
+
+document.getElementById('inv-add-node-btn').addEventListener('click', addNodeRow);
+
+// Mode toggle
+document.getElementById('inv-mode-single').addEventListener('click', function() {
+  this.classList.add('active');
+  document.getElementById('inv-mode-multi').classList.remove('active');
+  document.getElementById('inv-mode-label').textContent = 'Alarm Investigation';
+  document.querySelector('.inv-form').style.display = 'flex';
+  document.getElementById('inv-multi-form').style.display = 'none';
+});
+
+document.getElementById('inv-mode-multi').addEventListener('click', function() {
+  this.classList.add('active');
+  document.getElementById('inv-mode-single').classList.remove('active');
+  document.getElementById('inv-mode-label').textContent = 'Multi-Node Investigation';
+  document.querySelector('.inv-form').style.display = 'none';
+  document.getElementById('inv-multi-form').style.display = 'flex';
+  if (multiNodeRows.length === 0) { addNodeRow(); addNodeRow(); } // seed two rows
+});
+
+// Multi-node run
+document.getElementById('inv-multi-run-btn').addEventListener('click', runMultiNodeInvestigation);
+
+async function runMultiNodeInvestigation() {
+  const activeRows = [...document.querySelectorAll('[id^="inv-row-"]')];
+  const nodes = [];
+
+  for (const row of activeRows) {
+    const idx      = row.id.replace('inv-row-', '');
+    const nodeId   = document.getElementById(`inv-mn-nodeid-${idx}`)?.value ?? '';
+    const alarm    = document.getElementById(`inv-mn-alarm-${idx}`)?.value  ?? '';
+    const valueRaw = document.getElementById(`inv-mn-value-${idx}`)?.value  ?? '';
+    const unit     = document.getElementById(`inv-mn-unit-${idx}`)?.value   ?? 'PSI';
+    const value    = parseFloat(valueRaw);
+
+    if (!nodeId)      { alert(`Node ${parseInt(idx)+1}: Node ID is required.`); return; }
+    if (isNaN(value)) { alert(`Node ${parseInt(idx)+1}: Sensor value is required.`); return; }
+
+    nodes.push({ nodeId, alarmType: alarm, sensorValue: value, unit });
+  }
+
+  if (nodes.length < 2) { alert('Add at least 2 nodes.'); return; }
+
+  const regionContext = document.getElementById('inv-region-context').value.trim() || undefined;
+
+  const btn   = document.getElementById('inv-multi-run-btn');
+  const label = document.getElementById('inv-multi-run-label');
+  btn.disabled = true;
+  btn.classList.add('running');
+  label.textContent = '◌ Investigating…';
+
+  const incidentId = generateIncidentId();
+
+  try {
+    const resp = await fetch('/api/alarm/investigate/multinode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodes, regionContext })
+    });
+
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+
+    currentIncidentId = incidentId;
+    currentNodeId     = nodes[0].nodeId;
+
+    renderMultiNodeResult(data);
+    await seedMultiNodeChat(incidentId, nodes[0].nodeId, data);
+    openChat(incidentId);
+
+  } catch (err) {
+    console.error('Multi-node investigation failed', err);
+    alert(`Investigation failed: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('running');
+    label.textContent = '▶ Run Multi-Node Investigation';
+  }
+}
+
+function renderMultiNodeResult(data) {
+  const sev = (data.overallSeverity ?? 'UNKNOWN').toUpperCase();
+
+  document.getElementById('inv-res-node').textContent =
+    `${data.affectedNodes?.length ?? 0} / ${data.nodeResults?.length ?? 0} nodes affected`;
+  document.getElementById('inv-res-conclusion').textContent =
+    `${data.rootCauseHypothesis ?? '—'}\n\n${data.correlationSummary ?? ''}`;
+  document.getElementById('inv-res-action').innerHTML =
+    `<b>▶ RECOMMENDED ACTION:</b> ${data.recommendedAction ?? '—'}`;
+  document.getElementById('inv-res-iters').textContent =
+    `${data.totalIterations ?? 0} total iterations`;
+
+  const sevEl = document.getElementById('inv-res-sev');
+  sevEl.textContent = sev;
+  sevEl.className   = `sev-badge sev-${sev}`;
+
+  // Show per-node tool chains
+  const toolsEl = document.getElementById('inv-res-tools');
+  toolsEl.innerHTML = '';
+  (data.nodeResults ?? []).forEach(r => {
+    const chip = document.createElement('div');
+    chip.className   = 'inv-tool-chip';
+    chip.textContent = `${r.nodeId}: ${r.severity}`;
+    chip.title       = r.conclusion;
+    toolsEl.appendChild(chip);
+  });
+
+  document.getElementById('inv-result').classList.add('visible');
+}
+
+async function seedMultiNodeChat(incidentId, nodeId, data) {
+  const nodeResults = data.nodeResults ?? [];
+  const summary =
+    `Multi-node investigation complete.\n` +
+    `Nodes investigated: ${nodeResults.map(r => r.nodeId).join(', ')}\n` +
+    `Affected nodes: ${(data.affectedNodes ?? []).join(', ') || 'none'}\n` +
+    `Overall severity: ${data.overallSeverity}\n` +
+    `Root cause hypothesis: ${data.rootCauseHypothesis}\n` +
+    `Correlation: ${data.correlationSummary}\n` +
+    `Recommended action: ${data.recommendedAction}\n\n` +
+    `Per-node findings:\n` +
+    nodeResults.map(r =>
+      `  ${r.nodeId} — ${r.severity}: ${r.conclusion}`).join('\n');
+
+  try {
+    await fetch(`/api/incidents/${incidentId}/chat?nodeId=${encodeURIComponent(nodeId)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: summary })
+    });
+  } catch (err) {
+    console.error('Multi-node chat seed failed', err);
+  }
 }
 
 // ── Investigation ──────────────────────────────────────────────────────────
