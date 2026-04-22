@@ -48,6 +48,7 @@ public class ClaudeService : IClaudeService
         httpRequest.Headers.Add("anthropic-version", "2023-06-01");
         httpRequest.Content = content;
 
+        using var throttleLease = await _throttle.AcquireAsync(ct);
         var response = await _httpClient.SendAsync(httpRequest, ct);
         var elapsedMs = (long)(DateTimeOffset.UtcNow - started).TotalMilliseconds;
 
