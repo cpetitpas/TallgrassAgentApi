@@ -36,7 +36,7 @@ public sealed class IntegrationFactAttribute : FactAttribute
 public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly HttpClient _client;
-    private Task<MultiNodeResponse>? _cachedMultiNodeResponse;
+    private static Task<MultiNodeResponse>? s_cachedMultiNodeResponse;
     private static readonly HashSet<HttpStatusCode> TransientStatuses =
     [
         HttpStatusCode.TooManyRequests,
@@ -279,10 +279,10 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
 
     private Task<MultiNodeResponse> GetMultiNodeResultAsync()
     {
-        _cachedMultiNodeResponse ??= PostAndDeserialize<MultiNodeResponse>(
+        s_cachedMultiNodeResponse ??= PostAndDeserialize<MultiNodeResponse>(
             "/api/multinode/analyze",
             GetTestMultiNodeRequest());
-        return _cachedMultiNodeResponse;
+        return s_cachedMultiNodeResponse;
     }
 
     private static AlarmRequest GetTestAlarmRequest() => new()
