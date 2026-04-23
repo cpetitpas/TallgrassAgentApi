@@ -48,6 +48,12 @@ public class MultiNodeInvestigateService : IMultiNodeInvestigateService
         int nodeParallelism = _config.GetValue<int>("ClaudeThrottle:NodeParallelism",
             _config.GetValue<int>("ClaudeThrottle:MaxConcurrent", 3));
 
+        if (nodeParallelism <= 0)
+        {
+            throw new InvalidOperationException(
+                $"Configuration value 'ClaudeThrottle:NodeParallelism' must be greater than 0, but was {nodeParallelism}.");
+        }
+
         var rawResultsBag = new System.Collections.Concurrent.ConcurrentBag<NodeInvestigationResult>();
 
         try
@@ -107,7 +113,9 @@ public class MultiNodeInvestigateService : IMultiNodeInvestigateService
             NodeResults         = rawResults.ToList(),
             TotalIterations     = rawResults.Sum(r => r.Iterations),
             AffectedNodes       = rawResults
-                                    .Where(r => r.Severity is "HIGH" or "MEDIUM")
+                                    .Where(r =>
+                                        string.Equals(r.Severity, "HIGH", StringComparison.OrdinalIgnoreCase) ||
+                                        string.Equals(r.Severity, "MEDIUM", StringComparison.OrdinalIgnoreCase))
                                     .Select(r => r.NodeId)
                                     .ToList()
         };

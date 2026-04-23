@@ -65,15 +65,19 @@ public class FakeSynthesisHandler : HttpMessageHandler
 public class MultiNodeInvestigateTests
 {
     private static (MultiNodeInvestigateService svc, FakeInvestigateService fakeSingle)
-        Build(HttpMessageHandler? handler = null)
+        Build(HttpMessageHandler? handler = null, int? nodeParallelism = null)
     {
+        var settings = new Dictionary<string, string?>
+        {
+            ["Anthropic:ApiKey"]             = "test",
+            ["ClaudeThrottle:MaxConcurrent"] = "3",
+            ["ClaudeThrottle:MaxWaitMs"]     = "5000"
+        };
+        if (nodeParallelism.HasValue)
+            settings["ClaudeThrottle:NodeParallelism"] = nodeParallelism.Value.ToString();
+
         var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Anthropic:ApiKey"]             = "test",
-                ["ClaudeThrottle:MaxConcurrent"] = "3",
-                ["ClaudeThrottle:MaxWaitMs"]     = "5000"
-            })
+            .AddInMemoryCollection(settings)
             .Build();
 
         var fakeSingle = new FakeInvestigateService();
@@ -135,6 +139,14 @@ public class MultiNodeInvestigateTests
     }
 
     [Fact]
+    public void InvalidNodeParallelism_ThrowsClearConfigurationError()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => Build(nodeParallelism: 0));
+
+        Assert.Contains("ClaudeThrottle:NodeParallelism", ex.Message);
+    }
+
+    [Fact]
     public async Task Endpoint_ReturnsBadRequest_ForSingleNode()
     {
         await using var app = TestWebHostFactory.CreateQuietFactory();
@@ -170,7 +182,97 @@ public class MultiNodeInvestigateTests
         Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
     }
 
-    [Fact(Skip = "Requires Anthropic__ApiKey env var")]
+    [Fact]
+    public async Task Endpoint_ReturnsBadRequest_ForDuplicateNodeIds()
+    {
+        await using var app = TestWebHostFactory.CreateQuietFactory();
+        var client = app.CreateClient();
+
+        var payload = new
+        {
+            nodes = new[]
+            {
+                new { nodeId = "NODE-001", alarmType = "HIGH_PRESSURE", sensorValue = 1290, unit = "PSI" },
+                new { nodeId = "node-001", alarmType = "LOW_PRESSURE",  sensorValue = 1180, unit = "PSI" }
+            }
+        };
+
+        var resp = await client.PostAsync(
+            "/api/alarm/investigate/multinode",
+            new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task Endpoint_ReturnsBadRequest_ForMissingAlarmType()
+    {
+        await using var app = TestWebHostFactory.CreateQuietFactory();
+        var client = app.CreateClient();
+
+        var payload = new
+        {
+            nodes = new[]
+            {
+                new { nodeId = "NODE-001", alarmType = "", sensorValue = 1290, unit = "PSI" },
+                new { nodeId = "NODE-002", alarmType = "HIGH_PRESSURE", sensorValue = 1280, unit = "PSI" }
+            }
+        };
+
+        var resp = await client.PostAsync(
+            "/api/alarm/investigate/multinode",
+            new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task Endpoint_ReturnsBadRequest_ForMissingUnit()
+    {
+        await using var app = TestWebHostFactory.CreateQuietFactory();
+        var client = app.CreateClient();
+
+        var payload = new
+        {
+            nodes = new[]
+            {
+                new { nodeId = "NODE-001", alarmType = "HIGH_PRESSURE", sensorValue = 1290, unit = "" },
+                new { nodeId = "NODE-002", alarmType = "HIGH_PRESSURE", sensorValue = 1280, unit = "PSI" }
+            }
+        };
+
+        var resp = await client.PostAsync(
+            "/api/alarm/investigate/multinode",
+            new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task Endpoint_ReturnsBadRequest_ForInvalidSensorValueShape()
+    {
+        await using var app = TestWebHostFactory.CreateQuietFactory();
+        var client = app.CreateClient();
+
+        // sensorValue must be a JSON number; sending an object should fail model binding.
+        var payload =
+            """
+            {
+              "nodes": [
+                { "nodeId": "NODE-001", "alarmType": "HIGH_PRESSURE", "sensorValue": { "value": 1290 }, "unit": "PSI" },
+                { "nodeId": "NODE-002", "alarmType": "HIGH_PRESSURE", "sensorValue": 1280, "unit": "PSI" }
+              ]
+            }
+            """;
+
+        var resp = await client.PostAsync(
+            "/api/alarm/investigate/multinode",
+            new StringContent(payload, Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+    }
+
+    [IntegrationFact]
     [Trait("Category", "Integration")]
     public async Task Integration_RealApi_ThreeNodes()
     {

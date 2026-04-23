@@ -27,6 +27,19 @@ public class MultiNodeInvestigateController : ControllerBase
         if (request.Nodes.Any(n => string.IsNullOrWhiteSpace(n.NodeId)))
             return BadRequest("All nodes must have a NodeId.");
 
+        if (request.Nodes.Any(n => string.IsNullOrWhiteSpace(n.AlarmType)))
+            return BadRequest("All nodes must have an AlarmType.");
+
+        if (request.Nodes.Any(n => string.IsNullOrWhiteSpace(n.Unit)))
+            return BadRequest("All nodes must have a Unit.");
+
+        if (request.Nodes.Any(n => double.IsNaN(n.SensorValue) || double.IsInfinity(n.SensorValue)))
+            return BadRequest("All nodes must have a valid SensorValue.");
+
+        var seenNodeIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (request.Nodes.Any(n => !seenNodeIds.Add(n.NodeId.Trim())))
+            return BadRequest("Duplicate NodeId values are not allowed.");
+
         try
         {
             var result = await _svc.InvestigateAsync(request, cancellationToken);

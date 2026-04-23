@@ -846,7 +846,7 @@
       </div>
     </div>
 
-    <div class="inv-form">
+    <div id="inv-single-form" class="inv-form">
 
       <div class="inv-row">
         <div class="inv-field">
@@ -1485,6 +1485,7 @@ const ALARM_TYPES = [
 const UNITS = ['PSI','MMCFD','°F','°C','GPM'];
 
 let multiNodeRows = [];
+let nextMultiNodeRowId = 0;
 
 function buildNodeRowHtml(idx) {
   const alarmOpts = ALARM_TYPES.map(t =>
@@ -1528,7 +1529,7 @@ function buildNodeRowHtml(idx) {
 }
 
 function addNodeRow() {
-  const idx = multiNodeRows.length;
+  const idx = nextMultiNodeRowId++;
   multiNodeRows.push(idx);
   const container = document.getElementById('inv-node-rows');
   const div = document.createElement('div');
@@ -1569,7 +1570,7 @@ document.getElementById('inv-mode-single').addEventListener('click', function() 
   this.classList.add('active');
   document.getElementById('inv-mode-multi').classList.remove('active');
   document.getElementById('inv-mode-label').textContent = 'Alarm Investigation';
-  document.querySelector('.inv-form').style.display = 'flex';
+  document.getElementById('inv-single-form').style.display = 'flex';
   document.getElementById('inv-multi-form').style.display = 'none';
 });
 
@@ -1577,7 +1578,7 @@ document.getElementById('inv-mode-multi').addEventListener('click', function() {
   this.classList.add('active');
   document.getElementById('inv-mode-single').classList.remove('active');
   document.getElementById('inv-mode-label').textContent = 'Multi-Node Investigation';
-  document.querySelector('.inv-form').style.display = 'none';
+  document.getElementById('inv-single-form').style.display = 'none';
   document.getElementById('inv-multi-form').style.display = 'flex';
   if (multiNodeRows.length === 0) { addNodeRow(); addNodeRow(); } // seed two rows
 });
@@ -1668,9 +1669,9 @@ function extractNodeData(text, nodeId) {
   
   // Infer severity
   let severity = 'NORMAL';
-  if (/CRITICAL|dangerously/.test(context)) severity = 'CRITICAL';
-  else if (/WARNING|elevated/.test(context)) severity = 'WARNING';
-  else if (/underpressure|below|low/.test(context)) severity = 'WARNING';
+  if (/CRITICAL|dangerously/i.test(context)) severity = 'CRITICAL';
+  else if (/WARNING|elevated/i.test(context)) severity = 'WARNING';
+  else if (/underpressure|below|low/i.test(context)) severity = 'WARNING';
 
   // Try to extract percentage values
   const percentMatch = context.match(/([\+\-]?\d+(?:\.\d+)?)\s*%/);
@@ -1702,6 +1703,7 @@ function populateMultiNodeForm(data) {
   // Clear existing rows
   document.getElementById('inv-node-rows').innerHTML = '';
   multiNodeRows = [];
+  nextMultiNodeRowId = 0;
 
   // Set region context
   if (data.regionId) {

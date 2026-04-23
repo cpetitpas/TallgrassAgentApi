@@ -1,7 +1,7 @@
 # Multi-Node Alarm Paste Parser
 
 ## Overview
-Added a new "Paste from Alarm" mode to the Multi-Node Investigation UI to dramatically reduce data entry time. Users can now paste raw alarm analysis text and have the system automatically extract node IDs, statuses, and values.
+Added a new "Paste from Alarm" mode to the Multi-Node Investigation UI to dramatically reduce data entry time. Users can now paste raw alarm analysis text and have the system automatically extract node IDs and investigation inputs (alarm type, sensor value, and unit).
 
 ## Feature Location
 **Dashboard Tab**: Investigate → Multi Node → **Paste from Alarm** button
@@ -33,6 +33,7 @@ normal at -6.5%.
   - **Alarm Types**: HIGH_PRESSURE, LOW_PRESSURE based on context
   - **Sensor Values**: Calculated from percentage values or severity
   - **Units**: Inferred from context (PSI, MMCFD, etc.)
+- Note: severity keywords are inferred internally to help estimate values, but severity is not populated as a form field.
 
 ### 4. Run Investigation
 - Click **Manual Entry** to review extracted data
@@ -47,7 +48,7 @@ The parser extracts:
 |------|-------------------|
 | **Region ID** | Looks for `REGION-X` pattern |
 | **Node IDs** | Finds all `NODE-XXX` references |
-| **Severity** | Keywords: CRITICAL, WARNING, elevated, underpressure, low |
+| **Severity (internal only)** | Keywords: CRITICAL, WARNING, elevated, underpressure, low (used for inference, not surfaced) |
 | **Alarm Type** | Context: "pressure/psi" → HIGH_PRESSURE, "flow/mmcfd" → HIGH_FLOW, "low/under" → LOW_PRESSURE |
 | **Sensor Value** | From percentage (e.g., "+36%" → 1290 × 1.36 = 1754 PSI) or severity estimate |
 | **Unit** | PSI (default), MMCFD, °F, °C based on context |
@@ -109,5 +110,7 @@ The feature gracefully handles:
 - Duplicate node IDs (deduped)
 - Partial data (estimates from severity)
 - Non-standard formatting (regex patterns flexible)
+
+The parser populates these outgoing fields per node: `nodeId`, `alarmType`, `sensorValue`, and `unit`.
 
 Min requirement: 2+ nodes must be found to proceed.
