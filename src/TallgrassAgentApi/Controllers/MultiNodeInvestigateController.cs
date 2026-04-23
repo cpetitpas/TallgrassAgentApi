@@ -36,13 +36,24 @@ public class MultiNodeInvestigateController : ControllerBase
         if (request.Nodes.Any(n => double.IsNaN(n.SensorValue) || double.IsInfinity(n.SensorValue)))
             return BadRequest("All nodes must have a valid SensorValue.");
 
+        var normalizedNodes = request.Nodes
+            .Select(n => n with
+            {
+                NodeId = n.NodeId.Trim(),
+                AlarmType = n.AlarmType.Trim(),
+                Unit = n.Unit.Trim()
+            })
+            .ToList();
+
         var seenNodeIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (request.Nodes.Any(n => !seenNodeIds.Add(n.NodeId.Trim())))
+        if (normalizedNodes.Any(n => !seenNodeIds.Add(n.NodeId)))
             return BadRequest("Duplicate NodeId values are not allowed.");
+
+        var normalizedRequest = request with { Nodes = normalizedNodes };
 
         try
         {
-            var result = await _svc.InvestigateAsync(request, cancellationToken);
+            var result = await _svc.InvestigateAsync(normalizedRequest, cancellationToken);
             return Ok(result);
         }
         catch (ThrottleRejectedException ex)

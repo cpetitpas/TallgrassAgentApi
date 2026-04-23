@@ -201,16 +201,9 @@ public class IncidentChatTests
         Assert.Single(reread!.Messages);
     }
 
-    [Fact]
-    [Trait("Category", "Integration")]
+    [IntegrationFact]
     public async Task Integration_MultiTurn_MaintainsContext()
     {
-        var apiKey = Environment.GetEnvironmentVariable("Anthropic__ApiKey");
-        if (string.IsNullOrEmpty(apiKey))
-        {
-            return; // Skip if env var not set
-        }
-
         var config = new ConfigurationBuilder().AddEnvironmentVariables().Build();
         var store  = new InMemoryConversationStore();
         var svc    = new ChatService(new HttpClient(), new ClaudeThrottle(config), new AuditService(), config, store,

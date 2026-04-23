@@ -17,6 +17,7 @@ public class IntegrationTestCollection { }
 public sealed class IntegrationFactAttribute : FactAttribute
 {
     public const string EnableEnvVar = "RUN_INTEGRATION_TESTS";
+    public const string ApiKeyEnvVar = "Anthropic__ApiKey";
 
     public IntegrationFactAttribute()
     {
@@ -24,6 +25,13 @@ public sealed class IntegrationFactAttribute : FactAttribute
         if (!string.Equals(enabled, "true", StringComparison.OrdinalIgnoreCase))
         {
             Skip = $"Integration tests are skipped by default. Set {EnableEnvVar}=true to enable.";
+            return;
+        }
+
+        var apiKey = Environment.GetEnvironmentVariable(ApiKeyEnvVar);
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            Skip = $"Integration tests require {ApiKeyEnvVar} environment variable.";
         }
     }
 }
@@ -238,7 +246,6 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
     private async Task<HttpResponseMessage> PostAsync(string url, object body)
     {
         const int maxAttempts = 5;
-        var random = new Random();
 
         for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
@@ -254,7 +261,7 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
             response.Dispose();
             // Exponential backoff with jitter: 500ms, 1s, 2s, 4s
             var baseDelayMs = 500 * (int)Math.Pow(2, attempt - 1);
-            var jitterMs = random.Next(0, baseDelayMs / 2);
+            var jitterMs = Random.Shared.Next(0, baseDelayMs / 2);
             var delayMs = baseDelayMs + jitterMs;
             await Task.Delay(delayMs);
         }

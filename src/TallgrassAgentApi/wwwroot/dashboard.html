@@ -1797,8 +1797,12 @@ function renderMultiNodeResult(data) {
     `${data.affectedNodes?.length ?? 0} / ${data.nodeResults?.length ?? 0} nodes affected`;
   document.getElementById('inv-res-conclusion').textContent =
     `${data.rootCauseHypothesis ?? '—'}\n\n${data.correlationSummary ?? ''}`;
-  document.getElementById('inv-res-action').innerHTML =
-    `<b>▶ RECOMMENDED ACTION:</b> ${data.recommendedAction ?? '—'}`;
+  const actionEl = document.getElementById('inv-res-action');
+   actionEl.textContent = '';
+   const actionLabelEl = document.createElement('b');
+   actionLabelEl.textContent = '▶ RECOMMENDED ACTION:';
+   actionEl.appendChild(actionLabelEl);
+   actionEl.appendChild(document.createTextNode(` ${data.recommendedAction ?? '—'}`));
   document.getElementById('inv-res-iters').textContent =
     `${data.totalIterations ?? 0} total iterations`;
 

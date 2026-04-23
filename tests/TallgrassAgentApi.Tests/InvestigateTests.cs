@@ -164,16 +164,9 @@ public class InvestigateTests
         }
     }
 
-    [Fact]
-    [Trait("Category", "Integration")]
-    public async Task Integration_RealApi_ReturnsValidResponse()
-    {
-        var apiKey = Environment.GetEnvironmentVariable("Anthropic__ApiKey");
-        if (string.IsNullOrEmpty(apiKey))
-        {
-            return; // Skip if env var not set
-        }
-
+    [IntegrationFact]
+     public async Task Integration_RealApi_ReturnsValidResponse()
+     {
         var config = new ConfigurationBuilder()
             .AddEnvironmentVariables()
             .Build();
