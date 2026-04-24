@@ -135,7 +135,7 @@ public class InvestigateTests
     [Fact]
     public async Task NodeId_Missing_Returns400()
     {
-        await using var app = new WebApplicationFactory<Program>();
+        await using var app = TestWebHostFactory.CreateQuietFactory();
         var client = app.CreateClient();
 
         var resp = await client.PostAsync("/api/alarm/investigate",
@@ -164,10 +164,9 @@ public class InvestigateTests
         }
     }
 
-    [Fact(Skip = "Requires Anthropic__ApiKey env var")]
-    [Trait("Category", "Integration")]
-    public async Task Integration_RealApi_ReturnsValidResponse()
-    {
+    [IntegrationFact]
+     public async Task Integration_RealApi_ReturnsValidResponse()
+     {
         var config = new ConfigurationBuilder()
             .AddEnvironmentVariables()
             .Build();

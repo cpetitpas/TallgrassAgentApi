@@ -838,9 +838,15 @@
 
   <!-- Left: form + result -->
   <div id="inv-form-col">
-    <div class="inv-section-title">Alarm Investigation</div>
+    <div class="inv-section-title" style="display:flex;align-items:center;justify-content:space-between;">
+      <span id="inv-mode-label">Alarm Investigation</span>
+      <div style="display:flex;gap:6px;">
+        <button class="filter-btn active" id="inv-mode-single" style="font-size:11px;padding:3px 10px;">Single Node</button>
+        <button class="filter-btn"        id="inv-mode-multi"  style="font-size:11px;padding:3px 10px;">Multi Node</button>
+      </div>
+    </div>
 
-    <div class="inv-form">
+    <div id="inv-single-form" class="inv-form">
 
       <div class="inv-row">
         <div class="inv-field">
@@ -888,6 +894,63 @@
 
       <button id="inv-run-btn" class="inv-run-btn">
         <span id="inv-run-label">▶ Run Investigation</span>
+      </button>
+    </div>
+
+    <div id="inv-multi-form" class="inv-form" style="display:none;">
+
+      <!-- Parse from alarm text or manual entry toggle -->
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <button class="filter-btn active" id="inv-multi-mode-manual" style="font-size:10px;padding:4px 10px;flex:1;">Manual Entry</button>
+        <button class="filter-btn" id="inv-multi-mode-paste" style="font-size:10px;padding:4px 10px;flex:1;">Paste from Alarm</button>
+      </div>
+
+      <!-- Manual entry section -->
+      <div id="inv-multi-manual-section">
+        <div class="inv-field">
+          <label class="inv-label">Region Context <span style="color:var(--dim);font-size:9px;letter-spacing:1px">(optional)</span></label>
+          <input id="inv-region-context" class="inv-input" type="text"
+                 placeholder="e.g. Wamsutter Lateral, Wyoming" />
+        </div>
+
+        <div id="inv-node-rows"></div>
+
+        <button id="inv-add-node-btn" style="
+          padding:7px 14px; font-family:'Barlow Condensed',sans-serif;
+          font-size:12px; font-weight:600; letter-spacing:2px; text-transform:uppercase;
+          border:1px dashed var(--border); background:transparent; color:var(--dim);
+          cursor:pointer; transition:all .2s; width:100%;">
+          + Add Node
+        </button>
+      </div>
+
+      <!-- Paste section -->
+      <div id="inv-multi-paste-section" style="display:none;">
+        <div class="inv-field">
+          <label class="inv-label">Paste Alarm Report</label>
+          <textarea id="inv-paste-text" class="inv-textarea" placeholder="Paste the alarm analysis text here. The system will automatically extract node IDs, statuses, and values."></textarea>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button id="inv-paste-parse-btn" style="
+            flex:1; padding:9px 14px; font-family:'Barlow Condensed',sans-serif;
+            font-size:12px; font-weight:600; letter-spacing:2px; text-transform:uppercase;
+            border:1px solid var(--accent-dim); background:transparent; color:var(--accent);
+            cursor:pointer; transition:all .2s; border-radius:2px;">
+            ⇅ Parse Text
+          </button>
+          <button id="inv-paste-clear-btn" style="
+            flex:1; padding:9px 14px; font-family:'Barlow Condensed',sans-serif;
+            font-size:12px; font-weight:600; letter-spacing:2px; text-transform:uppercase;
+            border:1px solid var(--border); background:transparent; color:var(--dim);
+            cursor:pointer; transition:all .2s; border-radius:2px;">
+            Clear
+          </button>
+        </div>
+        <div id="inv-parse-status" style="margin-top:10px;padding:10px;border-left:2px solid var(--accent-dim);background:rgba(0,229,255,.05);color:var(--dim);font-size:12px;display:none;"></div>
+      </div>
+
+      <button id="inv-multi-run-btn" class="inv-run-btn" style="margin-top:16px;">
+        <span id="inv-multi-run-label">▶ Run Multi-Node Investigation</span>
       </button>
     </div>
 
@@ -1321,7 +1384,7 @@ document.getElementById('pause-btn').addEventListener('click', function() {
 });
 
 // ── Feed filter buttons ────────────────────────────────────────────────────
-document.querySelectorAll('.filter-btn').forEach(btn => {
+document.querySelectorAll('.filter-btn[data-filter]').forEach(btn => {
   btn.addEventListener('click', function() {
     document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
     this.classList.add('active');
@@ -1410,6 +1473,380 @@ function refreshNodeIdDropdown() {
   // Re-select previous value if it's still in the list
   if (current && [...sel.options].some(o => o.value === current))
     sel.value = current;
+
+  refreshNodeRowDropdowns();
+}
+
+// ── Multi-node form ────────────────────────────────────────────────────────
+const ALARM_TYPES = [
+  'HIGH_PRESSURE','LOW_PRESSURE','HIGH_FLOW','LOW_FLOW',
+  'HIGH_TEMPERATURE','LEAK_DETECTED','COMMUNICATION_LOSS','VALVE_FAULT'
+];
+const UNITS = ['PSI','MMCFD','°F','°C','GPM'];
+
+let multiNodeRows = [];
+let nextMultiNodeRowId = 0;
+
+function buildNodeRowHtml(idx) {
+  const alarmOpts = ALARM_TYPES.map(t =>
+    `<option value="${t}">${t}</option>`).join('');
+  const unitOpts  = UNITS.map(u =>
+    `<option value="${u}">${u}</option>`).join('');
+
+  return `
+    <div class="inv-node-row" id="inv-row-${idx}"
+         style="border:1px solid var(--border);padding:12px;margin-bottom:8px;position:relative;">
+      <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;
+                  color:var(--accent);margin-bottom:10px;font-weight:600;">
+        Node ${idx + 1}
+        <button onclick="removeNodeRow(${idx})"
+          style="position:absolute;top:10px;right:10px;background:none;border:none;
+                 color:var(--dim);cursor:pointer;font-size:14px;" title="Remove">✕</button>
+      </div>
+      <div class="inv-row" style="margin-bottom:8px;">
+        <div class="inv-field">
+          <label class="inv-label">Node ID</label>
+          <select id="inv-mn-nodeid-${idx}" class="inv-select">
+            <option value="">— select —</option>
+          </select>
+        </div>
+        <div class="inv-field">
+          <label class="inv-label">Alarm Type</label>
+          <select id="inv-mn-alarm-${idx}" class="inv-select">${alarmOpts}</select>
+        </div>
+      </div>
+      <div class="inv-row">
+        <div class="inv-field">
+          <label class="inv-label">Sensor Value</label>
+          <input id="inv-mn-value-${idx}" class="inv-input" type="number" placeholder="1290" step="any" />
+        </div>
+        <div class="inv-field">
+          <label class="inv-label">Unit</label>
+          <select id="inv-mn-unit-${idx}" class="inv-select">${unitOpts}</select>
+        </div>
+      </div>
+    </div>`;
+}
+
+function addNodeRow() {
+  const idx = nextMultiNodeRowId++;
+  multiNodeRows.push(idx);
+  const container = document.getElementById('inv-node-rows');
+  const div = document.createElement('div');
+  div.innerHTML = buildNodeRowHtml(idx);
+  container.appendChild(div.firstElementChild);
+  refreshNodeRowDropdowns();
+}
+
+function removeNodeRow(idx) {
+  const el = document.getElementById(`inv-row-${idx}`);
+  if (el) el.remove();
+  multiNodeRows = multiNodeRows.filter(i => i !== idx);
+}
+
+function refreshNodeRowDropdowns() {
+  const stateOrder = { OFFLINE: 0, DEGRADED: 1, UNKNOWN: 2, HEALTHY: 3 };
+  const entries = Object.values(healthNodes)
+    .sort((a, b) => (stateOrder[a.healthState] ?? 2) - (stateOrder[b.healthState] ?? 2));
+
+  document.querySelectorAll('[id^="inv-mn-nodeid-"]').forEach(sel => {
+    const current = sel.value;
+    sel.innerHTML = '<option value="">— select —</option>';
+    entries.forEach(e => {
+      const opt = document.createElement('option');
+      opt.value = e.nodeId;
+      opt.textContent = e.nodeId;
+      sel.appendChild(opt);
+    });
+    if (current && [...sel.options].some(o => o.value === current))
+      sel.value = current;
+  });
+}
+
+document.getElementById('inv-add-node-btn').addEventListener('click', addNodeRow);
+
+// Mode toggle
+document.getElementById('inv-mode-single').addEventListener('click', function() {
+  this.classList.add('active');
+  document.getElementById('inv-mode-multi').classList.remove('active');
+  document.getElementById('inv-mode-label').textContent = 'Alarm Investigation';
+  document.getElementById('inv-single-form').style.display = 'flex';
+  document.getElementById('inv-multi-form').style.display = 'none';
+});
+
+document.getElementById('inv-mode-multi').addEventListener('click', function() {
+  this.classList.add('active');
+  document.getElementById('inv-mode-single').classList.remove('active');
+  document.getElementById('inv-mode-label').textContent = 'Multi-Node Investigation';
+  document.getElementById('inv-single-form').style.display = 'none';
+  document.getElementById('inv-multi-form').style.display = 'flex';
+  if (multiNodeRows.length === 0) { addNodeRow(); addNodeRow(); } // seed two rows
+});
+
+// Multi-node manual/paste mode toggle
+document.getElementById('inv-multi-mode-manual').addEventListener('click', function() {
+  this.classList.add('active');
+  document.getElementById('inv-multi-mode-paste').classList.remove('active');
+  document.getElementById('inv-multi-manual-section').style.display = 'block';
+  document.getElementById('inv-multi-paste-section').style.display = 'none';
+});
+
+document.getElementById('inv-multi-mode-paste').addEventListener('click', function() {
+  this.classList.add('active');
+  document.getElementById('inv-multi-mode-manual').classList.remove('active');
+  document.getElementById('inv-multi-manual-section').style.display = 'none';
+  document.getElementById('inv-multi-paste-section').style.display = 'block';
+});
+
+// Parse alarm text
+document.getElementById('inv-paste-parse-btn').addEventListener('click', parseAlarmText);
+document.getElementById('inv-paste-clear-btn').addEventListener('click', function() {
+  document.getElementById('inv-paste-text').value = '';
+  document.getElementById('inv-parse-status').style.display = 'none';
+});
+
+function parseAlarmText() {
+  const text = document.getElementById('inv-paste-text').value.trim();
+  if (!text) {
+    showParseStatus('Please paste alarm text first.', 'error');
+    return;
+  }
+
+  try {
+    const result = extractAlarmData(text);
+    
+    if (!result.nodes || result.nodes.length < 2) {
+      showParseStatus(`Found ${result.nodes?.length || 0} nodes. Need at least 2.`, 'error');
+      return;
+    }
+
+    populateMultiNodeForm(result);
+    showParseStatus(`✓ Successfully extracted ${result.nodes.length} nodes from ${result.regionId || 'region'}`, 'success');
+    
+    // Switch to manual view to show populated form
+    document.getElementById('inv-multi-mode-manual').click();
+  } catch (err) {
+    showParseStatus(`Parse error: ${err.message}`, 'error');
+  }
+}
+
+function showParseStatus(msg, type) {
+  const el = document.getElementById('inv-parse-status');
+  el.textContent = msg;
+  el.style.display = 'block';
+  el.style.borderLeftColor = type === 'success' ? 'var(--low)' : 'var(--high)';
+  el.style.background = type === 'success' ? 'rgba(0,255,136,.08)' : 'rgba(255,68,68,.08)';
+  el.style.color = type === 'success' ? 'var(--low)' : 'var(--high)';
+}
+
+function extractAlarmData(text) {
+  // Extract region ID (REGION-X pattern)
+  const regionMatch = text.match(/REGION[_-]?[A-Z0-9]+/gi);
+  const regionId = regionMatch ? regionMatch[0] : '';
+
+  // Extract all NODE references with context
+  const nodePattern = /NODE[_-]([A-Z0-9]+)/gi;
+  const nodeMatches = [...text.matchAll(nodePattern)];
+  const nodeIds = new Set(nodeMatches.map(m => `NODE-${m[1]}`));
+
+  // Extract pressure/value data for each node
+  const nodes = [];
+  nodeIds.forEach(nodeId => {
+    const nodeData = extractNodeData(text, nodeId);
+    if (nodeData) nodes.push(nodeData);
+  });
+
+  return { regionId, nodes };
+}
+
+function extractNodeData(text, nodeId) {
+  // Find context around the node mention
+  const nodePattern = new RegExp(`\\b${nodeId}\\b[^.]*[\\.;]`, 'i');
+  const match = text.match(nodePattern);
+  if (!match) return null;
+
+  const context = match[0];
+  
+  // Infer severity
+  let severity = 'NORMAL';
+  if (/CRITICAL|dangerously/i.test(context)) severity = 'CRITICAL';
+  else if (/WARNING|elevated/i.test(context)) severity = 'WARNING';
+  else if (/underpressure|below|low/i.test(context)) severity = 'WARNING';
+
+  // Try to extract percentage values
+  const percentMatch = context.match(/([\+\-]?\d+(?:\.\d+)?)\s*%/);
+  let percentage = 0;
+  if (percentMatch) percentage = parseFloat(percentMatch[1]);
+
+  // Estimate sensor value based on percentage (assume baseline ~1290 PSI for pressure)
+  let sensorValue = 1290;
+  if (percentage !== 0) {
+    sensorValue = 1290 * (1 + percentage / 100);
+  } else {
+    // Use severity to guess a value
+    if (severity === 'CRITICAL') sensorValue = 1450;
+    else if (severity === 'WARNING') sensorValue = 1350;
+  }
+
+  return {
+    nodeId,
+    alarmType: /pressure|psi/i.test(context) ? 'HIGH_PRESSURE' : 
+               /low|underpressure/i.test(context) ? 'LOW_PRESSURE' :
+               /flow|mmcfd/i.test(context) ? 'HIGH_FLOW' : 'HIGH_PRESSURE',
+    sensorValue: Math.round(sensorValue * 10) / 10,
+    unit: /psi/i.test(context) ? 'PSI' : /flow|mmcfd/i.test(context) ? 'MMCFD' : 'PSI',
+    percentage
+  };
+}
+
+function populateMultiNodeForm(data) {
+  // Clear existing rows
+  document.getElementById('inv-node-rows').innerHTML = '';
+  multiNodeRows = [];
+  nextMultiNodeRowId = 0;
+
+  // Set region context
+  if (data.regionId) {
+    document.getElementById('inv-region-context').value = data.regionId;
+  }
+
+  // Add rows for each node
+  data.nodes.forEach((node, idx) => {
+    addNodeRow();
+    const i = multiNodeRows[multiNodeRows.length - 1];
+    
+    // Populate fields
+    const nodeSelect = document.getElementById(`inv-mn-nodeid-${i}`);
+    const alarmSelect = document.getElementById(`inv-mn-alarm-${i}`);
+    const valueInput = document.getElementById(`inv-mn-value-${i}`);
+    const unitSelect = document.getElementById(`inv-mn-unit-${i}`);
+
+    if (nodeSelect) nodeSelect.value = node.nodeId;
+    if (alarmSelect) alarmSelect.value = node.alarmType;
+    if (valueInput) valueInput.value = node.sensorValue;
+    if (unitSelect) unitSelect.value = node.unit;
+  });
+
+  refreshNodeRowDropdowns();
+}
+
+// Multi-node run
+document.getElementById('inv-multi-run-btn').addEventListener('click', runMultiNodeInvestigation);
+
+async function runMultiNodeInvestigation() {
+  const activeRows = [...document.querySelectorAll('[id^="inv-row-"]')];
+  const nodes = [];
+
+  for (const row of activeRows) {
+    const idx      = row.id.replace('inv-row-', '');
+    const nodeId   = document.getElementById(`inv-mn-nodeid-${idx}`)?.value ?? '';
+    const alarm    = document.getElementById(`inv-mn-alarm-${idx}`)?.value  ?? '';
+    const valueRaw = document.getElementById(`inv-mn-value-${idx}`)?.value  ?? '';
+    const unit     = document.getElementById(`inv-mn-unit-${idx}`)?.value   ?? 'PSI';
+    const value    = parseFloat(valueRaw);
+
+    if (!nodeId)      { alert(`Node ${parseInt(idx)+1}: Node ID is required.`); return; }
+    if (isNaN(value)) { alert(`Node ${parseInt(idx)+1}: Sensor value is required.`); return; }
+
+    nodes.push({ nodeId, alarmType: alarm, sensorValue: value, unit });
+  }
+
+  if (nodes.length < 2) { alert('Add at least 2 nodes.'); return; }
+
+  const regionContext = document.getElementById('inv-region-context').value.trim() || undefined;
+
+  const btn   = document.getElementById('inv-multi-run-btn');
+  const label = document.getElementById('inv-multi-run-label');
+  btn.disabled = true;
+  btn.classList.add('running');
+  label.textContent = '◌ Investigating…';
+
+  const incidentId = generateIncidentId();
+
+  try {
+    const resp = await fetch('/api/alarm/investigate/multinode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodes, regionContext })
+    });
+
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+
+    currentIncidentId = incidentId;
+    currentNodeId     = nodes[0].nodeId;
+
+    renderMultiNodeResult(data);
+    await seedMultiNodeChat(incidentId, nodes[0].nodeId, data);
+    openChat(incidentId);
+
+  } catch (err) {
+    console.error('Multi-node investigation failed', err);
+    alert(`Investigation failed: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('running');
+    label.textContent = '▶ Run Multi-Node Investigation';
+  }
+}
+
+function renderMultiNodeResult(data) {
+  const sev = (data.overallSeverity ?? 'UNKNOWN').toUpperCase();
+
+  document.getElementById('inv-res-node').textContent =
+    `${data.affectedNodes?.length ?? 0} / ${data.nodeResults?.length ?? 0} nodes affected`;
+  document.getElementById('inv-res-conclusion').textContent =
+    `${data.rootCauseHypothesis ?? '—'}\n\n${data.correlationSummary ?? ''}`;
+  const actionEl = document.getElementById('inv-res-action');
+   actionEl.textContent = '';
+   const actionLabelEl = document.createElement('b');
+   actionLabelEl.textContent = '▶ RECOMMENDED ACTION:';
+   actionEl.appendChild(actionLabelEl);
+   actionEl.appendChild(document.createTextNode(` ${data.recommendedAction ?? '—'}`));
+  document.getElementById('inv-res-iters').textContent =
+    `${data.totalIterations ?? 0} total iterations`;
+
+  const sevEl = document.getElementById('inv-res-sev');
+  sevEl.textContent = sev;
+  sevEl.className   = `sev-badge sev-${sev}`;
+
+  // Show per-node tool chains
+  const toolsEl = document.getElementById('inv-res-tools');
+  toolsEl.innerHTML = '';
+  (data.nodeResults ?? []).forEach(r => {
+    const chip = document.createElement('div');
+    chip.className   = 'inv-tool-chip';
+    chip.textContent = `${r.nodeId}: ${r.severity}`;
+    chip.title       = r.conclusion;
+    toolsEl.appendChild(chip);
+  });
+
+  document.getElementById('inv-result').classList.add('visible');
+}
+
+async function seedMultiNodeChat(incidentId, nodeId, data) {
+  const nodeResults = data.nodeResults ?? [];
+  const summary =
+    `Multi-node investigation complete.\n` +
+    `Nodes investigated: ${nodeResults.map(r => r.nodeId).join(', ')}\n` +
+    `Affected nodes: ${(data.affectedNodes ?? []).join(', ') || 'none'}\n` +
+    `Overall severity: ${data.overallSeverity}\n` +
+    `Root cause hypothesis: ${data.rootCauseHypothesis}\n` +
+    `Correlation: ${data.correlationSummary}\n` +
+    `Recommended action: ${data.recommendedAction}\n\n` +
+    `Per-node findings:\n` +
+    nodeResults.map(r =>
+      `  ${r.nodeId} — ${r.severity}: ${r.conclusion}`).join('\n');
+
+  try {
+    await fetch(`/api/incidents/${incidentId}/chat?nodeId=${encodeURIComponent(nodeId)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: summary })
+    });
+  } catch (err) {
+    console.error('Multi-node chat seed failed', err);
+  }
 }
 
 // ── Investigation ──────────────────────────────────────────────────────────

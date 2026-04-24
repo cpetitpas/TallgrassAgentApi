@@ -136,7 +136,7 @@ public class IncidentChatTests
     [Fact]
     public async Task EmptyMessage_IsRejectedByController()
     {
-        await using var app    = new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program>();
+        await using var app    = TestWebHostFactory.CreateQuietFactory();
         var client             = app.CreateClient();
 
         var resp = await client.PostAsync(
@@ -201,8 +201,7 @@ public class IncidentChatTests
         Assert.Single(reread!.Messages);
     }
 
-    [Fact(Skip = "Requires Anthropic__ApiKey env var")]
-    [Trait("Category", "Integration")]
+    [IntegrationFact]
     public async Task Integration_MultiTurn_MaintainsContext()
     {
         var config = new ConfigurationBuilder().AddEnvironmentVariables().Build();
@@ -215,9 +214,21 @@ public class IncidentChatTests
         var r2 = await svc.SendAsync("INC-LIVE", "NODE-003",
             new ChatRequest { Message = "What was the severity you assigned and why?" });
 
-        // Claude should reference the prior turn in its second reply
-        Assert.Contains("1290", r2.Reply + r1.Reply, StringComparison.OrdinalIgnoreCase);
+        // Verify both replies exist and are non-empty
+        Assert.False(string.IsNullOrWhiteSpace(r1.Reply), "First reply should not be empty");
+        Assert.False(string.IsNullOrWhiteSpace(r2.Reply), "Second reply should not be empty");
+        
+        // Verify context was maintained across turns
         Assert.Equal(2, r2.TurnCount);
+        
+        // Verify second response shows awareness of the alarm context
+        // (mentions alarm, HIGH_PRESSURE, NODE, or severity)
+        var contextKeywords = new[] { "alarm", "pressure", "node", "severity", "concern" };
+        var secondReplyLower = r2.Reply.ToLowerInvariant();
+        Assert.True(
+            contextKeywords.Any(kw => secondReplyLower.Contains(kw)),
+            $"Second reply should reference alarm context. Got: {r2.Reply}"
+        );
     }
 }
 

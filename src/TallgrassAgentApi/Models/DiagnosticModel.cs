@@ -3,6 +3,7 @@ namespace TallgrassAgentApi.Models;
 public record QueueSnapshot
 {
     public int  MaxConcurrent  { get; init; }
+    public int  NodeParallelism { get; init; }
     public int  ActiveCalls    { get; init; }
     public int  WaitingCalls   { get; init; }
     public int  CompletedCalls { get; init; }

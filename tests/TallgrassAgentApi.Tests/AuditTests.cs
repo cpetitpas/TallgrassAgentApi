@@ -72,7 +72,7 @@ public class AuditServiceTests
     [Fact]
     public async Task AuditEndpoints_ReturnOk()
     {
-        await using var app = new WebApplicationFactory<Program>();
+        await using var app = TestWebHostFactory.CreateQuietFactory();
         var client = app.CreateClient();
 
         var r1 = await client.GetAsync("/api/audit");
@@ -85,8 +85,7 @@ public class AuditServiceTests
     [Fact]
     public async Task AuditSummary_ReflectsRecordedEntries()
     {
-        await using var app = new WebApplicationFactory<Program>()
-            .WithWebHostBuilder(builder =>
+        await using var app = TestWebHostFactory.CreateQuietFactory(builder =>
                 builder.ConfigureServices(services =>
                 {
                     // Replace singleton with a pre-populated one

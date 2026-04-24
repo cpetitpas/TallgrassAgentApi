@@ -124,7 +124,7 @@ public class NodeRegistryTests : IClassFixture<WebApplicationFactory<Program>>
 
     public NodeRegistryTests(WebApplicationFactory<Program> factory)
     {
-        _factory = factory.WithWebHostBuilder(builder =>
+        _factory = factory.WithQuietHost(builder =>
         {
             builder.ConfigureServices(services =>
             {
@@ -259,7 +259,7 @@ public class NodeHeartbeatSseTests : IClassFixture<WebApplicationFactory<Program
 
     public NodeHeartbeatSseTests(WebApplicationFactory<Program> factory)
     {
-        _factory = factory.WithWebHostBuilder(builder =>
+        _factory = factory.WithQuietHost(builder =>
         {
             builder.ConfigureServices(services =>
             {

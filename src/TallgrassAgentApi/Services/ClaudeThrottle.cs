@@ -6,6 +6,7 @@ public class ClaudeThrottle
 {
     private readonly SemaphoreSlim          _semaphore;
     private readonly int                    _maxConcurrent;
+    private readonly int                    _nodeParallelism;
     private readonly int                    _maxWaitMs;
 
     private int _active    = 0;
@@ -16,12 +17,18 @@ public class ClaudeThrottle
     public ClaudeThrottle(IConfiguration config)
     {
         _maxConcurrent = config.GetValue<int>("ClaudeThrottle:MaxConcurrent", 3);
+        _nodeParallelism = config.GetValue<int>("ClaudeThrottle:NodeParallelism", _maxConcurrent);
         _maxWaitMs     = config.GetValue<int>("ClaudeThrottle:MaxWaitMs",     8000);
        
         if (_maxConcurrent <= 0)
         {
             throw new InvalidOperationException(
                 $"Configuration value 'ClaudeThrottle:MaxConcurrent' must be greater than 0, but was {_maxConcurrent}.");
+        }
+        if (_nodeParallelism <= 0)
+        {
+            throw new InvalidOperationException(
+                $"Configuration value 'ClaudeThrottle:NodeParallelism' must be greater than 0, but was {_nodeParallelism}.");
         }
         if (_maxWaitMs < -1)
         {
@@ -68,6 +75,7 @@ public class ClaudeThrottle
     public QueueSnapshot Snapshot() => new()
     {
         MaxConcurrent  = _maxConcurrent,
+        NodeParallelism = _nodeParallelism,
         ActiveCalls    = _active,
         WaitingCalls   = _waiting,
         CompletedCalls = _completed,

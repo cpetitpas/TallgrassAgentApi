@@ -91,7 +91,7 @@ public class DiagnosticsTests
     [Fact]
     public async Task DiagnosticsEndpoint_ReturnsOk()
     {
-        await using var app = new WebApplicationFactory<Program>();
+        await using var app = TestWebHostFactory.CreateQuietFactory();
         var client = app.CreateClient();
 
         var r1 = await client.GetAsync("/api/diagnostics/queue");
@@ -104,7 +104,7 @@ public class DiagnosticsTests
     [Fact]
     public async Task DiagnosticsQueue_ReflectsConfig()
     {
-        await using var app = new WebApplicationFactory<Program>();
+        await using var app = TestWebHostFactory.CreateQuietFactory();
         var client = app.CreateClient();
 
         var resp = await client.GetAsync("/api/diagnostics/queue");
@@ -113,6 +113,7 @@ public class DiagnosticsTests
         using var doc = JsonDocument.Parse(body);
         // MaxConcurrent should match appsettings value of 3
         Assert.Equal(3, doc.RootElement.GetProperty("maxConcurrent").GetInt32());
+        Assert.Equal(3, doc.RootElement.GetProperty("nodeParallelism").GetInt32());
         Assert.False(doc.RootElement.GetProperty("isThrottled").GetBoolean());
     }
 }

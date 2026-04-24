@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
@@ -5,12 +6,18 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using TallgrassAgentApi.Models;
 using TallgrassAgentApi.Services;
+using Xunit;
 
 namespace TallgrassAgentApi.Tests;
+
+// Disable test parallelization for integration tests to reduce API load
+[CollectionDefinition("Integration Tests", DisableParallelization = true)]
+public class IntegrationTestCollection { }
 
 public sealed class IntegrationFactAttribute : FactAttribute
 {
     public const string EnableEnvVar = "RUN_INTEGRATION_TESTS";
+    public const string ApiKeyEnvVar = "Anthropic__ApiKey";
 
     public IntegrationFactAttribute()
     {
@@ -18,6 +25,13 @@ public sealed class IntegrationFactAttribute : FactAttribute
         if (!string.Equals(enabled, "true", StringComparison.OrdinalIgnoreCase))
         {
             Skip = $"Integration tests are skipped by default. Set {EnableEnvVar}=true to enable.";
+            return;
+        }
+
+        var apiKey = Environment.GetEnvironmentVariable(ApiKeyEnvVar);
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            Skip = $"Integration tests require {ApiKeyEnvVar} environment variable.";
         }
     }
 }
@@ -25,15 +39,24 @@ public sealed class IntegrationFactAttribute : FactAttribute
 // Note: IntegrationTests does not inherit TestBase because it uses the real
 // ClaudeService with a live API key rather than the FakeClaudeService.
 // Helper methods are duplicated here intentionally.
+[Collection("Integration Tests")]
 [Trait("Category", "Integration")]
 public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly HttpClient _client;
+    private static Task<MultiNodeResponse>? s_cachedMultiNodeResponse;
+    private static readonly HashSet<HttpStatusCode> TransientStatuses =
+    [
+        HttpStatusCode.TooManyRequests,
+        HttpStatusCode.BadGateway,
+        HttpStatusCode.ServiceUnavailable,
+        HttpStatusCode.GatewayTimeout
+    ];
 
     public IntegrationTests(WebApplicationFactory<Program> factory)
     {
         // Load API key from environment variable for tests
-        _client = factory.WithWebHostBuilder(builder =>
+        _client = factory.WithQuietHost(builder =>
         {
             builder.ConfigureAppConfiguration((context, config) =>
             {
@@ -167,32 +190,28 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
     [IntegrationFact]
     public async Task MultiNodeAnalyze_RegionId_IsPopulated()
     {
-        var request = GetTestMultiNodeRequest();
-        var result = await PostAndDeserialize<MultiNodeResponse>("/api/multinode/analyze", request);
+        var result = await GetMultiNodeResultAsync();
         Assert.False(string.IsNullOrWhiteSpace(result.RegionId), "RegionId should not be empty");
     }
 
     [IntegrationFact]
     public async Task MultiNodeAnalyze_Summary_IsPopulated()
     {
-        var request = GetTestMultiNodeRequest();
-        var result = await PostAndDeserialize<MultiNodeResponse>("/api/multinode/analyze", request);
+        var result = await GetMultiNodeResultAsync();
         Assert.False(string.IsNullOrWhiteSpace(result.Summary), "Summary should not be empty");
     }
 
     [IntegrationFact]
     public async Task MultiNodeAnalyze_RecommendedAction_IsPopulated()
     {
-        var request = GetTestMultiNodeRequest();
-        var result = await PostAndDeserialize<MultiNodeResponse>("/api/multinode/analyze", request);
+        var result = await GetMultiNodeResultAsync();
         Assert.False(string.IsNullOrWhiteSpace(result.RecommendedAction), "RecommendedAction should not be empty");
     }
 
     [IntegrationFact]
     public async Task MultiNodeAnalyze_OverallStatus_IsValidValue()
     {
-        var request = GetTestMultiNodeRequest();
-        var result = await PostAndDeserialize<MultiNodeResponse>("/api/multinode/analyze", request);
+        var result = await GetMultiNodeResultAsync();
         var valid = new[] { "NORMAL", "DEGRADED", "CRITICAL" };
         Assert.Contains(result.OverallStatus, valid);
     }
@@ -200,8 +219,7 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
     [IntegrationFact]
     public async Task MultiNodeAnalyze_NodeCounts_AddUpToTotal()
     {
-        var request = GetTestMultiNodeRequest();
-        var result = await PostAndDeserialize<MultiNodeResponse>("/api/multinode/analyze", request);
+        var result = await GetMultiNodeResultAsync();
         var countSum = result.CriticalCount + result.WarningCount + result.NormalCount;
         Assert.Equal(result.TotalNodes, countSum);
     }
@@ -209,8 +227,7 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
     [IntegrationFact]
     public async Task MultiNodeAnalyze_AffectedNodes_IsNotNull()
     {
-        var request = GetTestMultiNodeRequest();
-        var result = await PostAndDeserialize<MultiNodeResponse>("/api/multinode/analyze", request);
+        var result = await GetMultiNodeResultAsync();
         Assert.NotNull(result.AffectedNodes);
     }
 
@@ -228,18 +245,51 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
 
     private async Task<HttpResponseMessage> PostAsync(string url, object body)
     {
-        var json = JsonSerializer.Serialize(body);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
-        return await _client.PostAsync(url, content);
+        const int maxAttempts = 5;
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            var json = JsonSerializer.Serialize(body);
+            using var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var response = await _client.PostAsync(url, content);
+
+            if (!TransientStatuses.Contains(response.StatusCode) || attempt == maxAttempts)
+            {
+                return response;
+            }
+
+            response.Dispose();
+            // Exponential backoff with jitter: 500ms, 1s, 2s, 4s
+            var baseDelayMs = 500 * (int)Math.Pow(2, attempt - 1);
+            var jitterMs = Random.Shared.Next(0, baseDelayMs / 2);
+            var delayMs = baseDelayMs + jitterMs;
+            await Task.Delay(delayMs);
+        }
+
+        throw new InvalidOperationException("Unreachable retry branch in PostAsync.");
     }
 
     private async Task<T> PostAndDeserialize<T>(string url, object body)
     {
-        var response = await PostAsync(url, body);
+        using var response = await PostAsync(url, body);
+        // If still transient after retries, surface a clear upstream-failure message.
+        if (TransientStatuses.Contains(response.StatusCode))
+        {
+            throw new InvalidOperationException($"Upstream API unreachable after retries: {response.StatusCode}");
+        }
+
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadFromJsonAsync<T>();
         Assert.NotNull(result);
         return result!;
+    }
+
+    private Task<MultiNodeResponse> GetMultiNodeResultAsync()
+    {
+        s_cachedMultiNodeResponse ??= PostAndDeserialize<MultiNodeResponse>(
+            "/api/multinode/analyze",
+            GetTestMultiNodeRequest());
+        return s_cachedMultiNodeResponse;
     }
 
     private static AlarmRequest GetTestAlarmRequest() => new()
