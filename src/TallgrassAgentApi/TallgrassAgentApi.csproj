@@ -17,7 +17,8 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.2" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.15.1" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.3" />
-    <PackageReference Include="AspireRunner.AspNetCore" Version="2.0.2" />
+    <PackageReference Include="AspireRunner.AspNetCore" Version="2.2.0" />
+    <PackageReference Include="AspireRunner.Installer" Version="2.2.0" />
   </ItemGroup>
 
 </Project>
