@@ -29,7 +29,7 @@ builder.Services.AddSingleton<NodeHealthRegistry>();
 builder.Services.AddHostedService<NodeHealthSweep>();
 
 // INodeClient: swap SimulatedNodeClient for HttpNodeClient in production
-if (builder.Environment.IsDevelopment())
+if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing"))
     builder.Services.AddScoped<INodeClient, SimulatedNodeClient>();
 else
     builder.Services.AddScoped<INodeClient, HttpNodeClient>();
@@ -39,6 +39,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var otlpEndpoint = builder.Configuration["Otel:OtlpEndpoint"] ?? "http://localhost:4317";
+var otlpApiKey = builder.Configuration["AspireDashboard:Otlp:PrimaryApiKey"];
 var resourceBuilder = ResourceBuilder.CreateDefault().AddService(TallgrassTelemetry.ServiceName);
 
 builder.Logging.AddOpenTelemetry(logging =>
@@ -51,6 +52,8 @@ builder.Logging.AddOpenTelemetry(logging =>
     {
         o.Endpoint = new Uri(otlpEndpoint);
         o.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
+        if (!string.IsNullOrWhiteSpace(otlpApiKey))
+            o.Headers = $"x-otlp-api-key={otlpApiKey}";
     });
 });
 
@@ -65,6 +68,8 @@ builder.Services.AddOpenTelemetry()
         {
             o.Endpoint = new Uri(otlpEndpoint);
             o.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
+            if (!string.IsNullOrWhiteSpace(otlpApiKey))
+                o.Headers = $"x-otlp-api-key={otlpApiKey}";
         }))
     .WithTracing(tracing => tracing
         .AddSource(TallgrassTelemetry.Claude.Name)
@@ -77,13 +82,16 @@ builder.Services.AddOpenTelemetry()
         {
             o.Endpoint = new Uri(otlpEndpoint);
             o.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
+            if (!string.IsNullOrWhiteSpace(otlpApiKey))
+                o.Headers = $"x-otlp-api-key={otlpApiKey}";
         }));
 
 // Auto-launch Aspire Dashboard in Development (no Docker required)
 if (builder.Environment.IsDevelopment())
 {
     builder.Services.AddAspireDashboardInstaller();
-    builder.Services.AddAspireDashboard();
+    builder.Services.AddAspireDashboard(options =>
+        builder.Configuration.GetSection("AspireDashboard").Bind(options));
 }
 
 var app = builder.Build();
