@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using TallgrassAgentApi.Models;
+using TallgrassAgentApi.Telemetry;
 
 namespace TallgrassAgentApi.Services;
 
@@ -45,16 +47,39 @@ public class ClaudeThrottle
     public async Task<IDisposable> AcquireAsync(CancellationToken cancellationToken = default)
     {
         Interlocked.Increment(ref _waiting);
+        using var activity = TallgrassTelemetry.Claude.StartActivity(
+            "ClaudeThrottle.WaitForSlot",
+            ActivityKind.Internal);
+        activity?.SetTag("throttle.max_concurrent", _maxConcurrent);
+        activity?.SetTag("throttle.max_wait_ms", _maxWaitMs);
+        activity?.SetTag("throttle.waiting_calls", _waiting);
+
+        var waitStarted = Stopwatch.StartNew();
         try
         {
             bool acquired = await _semaphore.WaitAsync(_maxWaitMs, cancellationToken);
+            waitStarted.Stop();
+            activity?.SetTag("throttle.acquired", acquired);
+            activity?.SetTag("throttle.wait_elapsed_ms", waitStarted.ElapsedMilliseconds);
             if (!acquired)
             {
                 Interlocked.Increment(ref _rejected);
+                activity?.SetTag("error.type", typeof(ThrottleRejectedException).FullName);
+                activity?.SetTag("error.message", "Semaphore wait timed out before acquiring a slot.");
                 throw new ThrottleRejectedException(
                     $"Claude API concurrency limit ({_maxConcurrent}) reached. " +
                     $"Request waited {_maxWaitMs}ms and was rejected.");
             }
+        }
+        catch (OperationCanceledException ex)
+        {
+            if (waitStarted.IsRunning)
+                waitStarted.Stop();
+            activity?.SetTag("throttle.acquired", false);
+            activity?.SetTag("throttle.wait_elapsed_ms", waitStarted.ElapsedMilliseconds);
+            activity?.SetTag("error.type", ex.GetType().FullName);
+            activity?.SetTag("error.message", ex.Message);
+            throw;
         }
         finally
         {

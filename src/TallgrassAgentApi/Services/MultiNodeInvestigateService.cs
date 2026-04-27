@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using TallgrassAgentApi.Models;
+using TallgrassAgentApi.Telemetry;
 
 namespace TallgrassAgentApi.Services;
 
@@ -127,6 +129,13 @@ public class MultiNodeInvestigateService : IMultiNodeInvestigateService
             NodeInvestigationResult[]   results,
             CancellationToken           cancellationToken)
     {
+        using var activity = TallgrassTelemetry.Investigate.StartActivity(
+            "MultiNodeInvestigateService.Synthesize",
+            ActivityKind.Internal);
+        activity?.SetTag("claude.model", "claude-opus-4-6");
+        activity?.SetTag("tallgrass.region_context", request.RegionContext ?? string.Empty);
+        activity?.SetTag("multinode.node_count", results.Length);
+
         var apiKey = _config["Anthropic:ApiKey"]
             ?? throw new InvalidOperationException("Anthropic:ApiKey not configured");
 
@@ -184,6 +193,8 @@ public class MultiNodeInvestigateService : IMultiNodeInvestigateService
         using var slot = await _throttle.AcquireAsync(cancellationToken);
         using var httpResponse = await _http.SendAsync(httpRequest, cancellationToken);
         sw.Stop();
+        activity?.SetTag("http.status_code", (int)httpResponse.StatusCode);
+        activity?.SetTag("multinode.synthesis_elapsed_ms", sw.ElapsedMilliseconds);
 
         var responseJson = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
 
@@ -211,9 +222,13 @@ public class MultiNodeInvestigateService : IMultiNodeInvestigateService
             Model        = "claude-opus-4-6",
             StatusCode   = (int)httpResponse.StatusCode
         });
+        activity?.SetTag("claude.input_tokens", inputTokens);
+        activity?.SetTag("claude.output_tokens", outputTokens);
 
         if (!httpResponse.IsSuccessStatusCode)
         {
+            activity?.SetTag("error.type", "HttpRequestException");
+            activity?.SetTag("error.message", $"Anthropic API returned {(int)httpResponse.StatusCode}");
             _logger.LogError("Synthesis API error {Status}: {Body}",
                 (int)httpResponse.StatusCode, responseJson);
             throw new HttpRequestException(
@@ -241,6 +256,9 @@ public class MultiNodeInvestigateService : IMultiNodeInvestigateService
             using var ans = JsonDocument.Parse(trimmed);
             var root = ans.RootElement;
 
+            activity?.SetTag("multinode.overall_severity",
+                root.TryGetProperty("overall_severity", out var sTag) ? sTag.GetString() ?? "UNKNOWN" : "UNKNOWN");
+
             return (
                 rootCause:   root.TryGetProperty("root_cause_hypothesis", out var rc) ? rc.GetString() ?? "" : "",
                 severity:    root.TryGetProperty("overall_severity",       out var sv) ? sv.GetString() ?? "UNKNOWN" : "UNKNOWN",
@@ -250,6 +268,8 @@ public class MultiNodeInvestigateService : IMultiNodeInvestigateService
         }
         catch (Exception ex)
         {
+            activity?.SetTag("error.type", ex.GetType().FullName);
+            activity?.SetTag("error.message", ex.Message);
             _logger.LogError(ex, "Failed to parse synthesis response: {Body}", responseJson);
             return ("Unable to synthesize findings.", "UNKNOWN", "Manual review required.", "");
         }

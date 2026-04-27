@@ -1,4 +1,8 @@
 using TallgrassAgentApi.Services;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using AspireRunner.AspNetCore;
+using TallgrassAgentApi.Telemetry;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,6 +34,29 @@ else
 // Swagger gives you a browser UI to test your endpoints
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// OpenTelemetry
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(r => r.AddService(TallgrassTelemetry.ServiceName))
+    .WithTracing(tracing => tracing
+        .AddSource(TallgrassTelemetry.Claude.Name)
+        .AddSource(TallgrassTelemetry.Investigate.Name)
+        .AddSource(TallgrassTelemetry.Chat.Name)
+        .AddSource(TallgrassTelemetry.Node.Name)
+        .AddAspNetCoreInstrumentation()   // auto-spans every HTTP request
+        .AddHttpClientInstrumentation()   // auto-spans every outbound HttpClient call
+        .AddOtlpExporter(o =>
+        {
+            o.Endpoint = new Uri(
+                builder.Configuration["Otel:OtlpEndpoint"] ?? "http://localhost:4317");
+            o.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
+        }));
+
+// Auto-launch Aspire Dashboard in Development (no Docker required)
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddAspireDashboard();
+}
 
 var app = builder.Build();
 

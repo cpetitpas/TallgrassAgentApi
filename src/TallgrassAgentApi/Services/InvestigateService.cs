@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using TallgrassAgentApi.Models;
+using TallgrassAgentApi.Telemetry;
 
 namespace TallgrassAgentApi.Services;
 
@@ -41,6 +43,17 @@ public class InvestigateService : IInvestigateService
         var apiKey = _config["Anthropic:ApiKey"]
             ?? throw new InvalidOperationException("Anthropic:ApiKey not configured");
 
+        using var activity = TallgrassTelemetry.Investigate.StartActivity(
+            "InvestigateService.Investigate",
+            ActivityKind.Internal);
+        activity?.SetTag("claude.model", "claude-opus-4-6");
+        activity?.SetTag("tallgrass.node_id", request.NodeId);
+        activity?.SetTag("tallgrass.alarm_type", request.AlarmType);
+        activity?.SetTag("tallgrass.sensor_value", request.SensorValue);
+        activity?.SetTag("tallgrass.unit", request.Unit);
+        activity?.SetTag("tallgrass.has_additional_context", !string.IsNullOrWhiteSpace(request.AdditionalContext));
+        activity?.SetTag("investigate.max_iterations", MaxIterations);
+
         // ── Seed messages ────────────────────────────────────────────────────
         var messages = new List<object>
         {
@@ -74,165 +87,200 @@ public class InvestigateService : IInvestigateService
         string severity          = "UNKNOWN";
         string recommendedAction = "Manual inspection required.";
 
-        // ── Agentic loop ─────────────────────────────────────────────────────
-        while (iterations < MaxIterations)
+        try
         {
-            iterations++;
-
-            var requestBody = new
+            // ── Agentic loop ─────────────────────────────────────────────────────
+            while (iterations < MaxIterations)
             {
-                model      = "claude-opus-4-6",
-                max_tokens = 1024,
-                tools      = PipelineTools.Definitions,
-                messages
-            };
+                iterations++;
 
-            var json    = JsonSerializer.Serialize(requestBody, JsonOpts);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
+                using var iterationActivity = TallgrassTelemetry.Investigate.StartActivity(
+                    "InvestigateService.AgenticIteration",
+                    ActivityKind.Internal);
+                iterationActivity?.SetTag("investigate.iteration", iterations);
+                iterationActivity?.SetTag("investigate.messages_count", messages.Count);
 
-            using var httpRequest = new HttpRequestMessage(HttpMethod.Post,
-                "https://api.anthropic.com/v1/messages");
-            httpRequest.Headers.Add("x-api-key", apiKey);
-            httpRequest.Headers.Add("anthropic-version", "2023-06-01");
-            httpRequest.Content = content;
+                var requestBody = new
+                {
+                    model      = "claude-opus-4-6",
+                    max_tokens = 1024,
+                    tools      = PipelineTools.Definitions,
+                    messages
+                };
 
-            var started = DateTimeOffset.UtcNow;
-            using var throttleLease = await _throttle.AcquireAsync(cancellationToken);
-            using var httpResponse = await _http.SendAsync(httpRequest, cancellationToken);
-            var responseJson = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
-            var elapsedMs = (long)(DateTimeOffset.UtcNow - started).TotalMilliseconds;
+                var json    = JsonSerializer.Serialize(requestBody, JsonOpts);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            if (!httpResponse.IsSuccessStatusCode)
-            {
+                using var httpRequest = new HttpRequestMessage(HttpMethod.Post,
+                    "https://api.anthropic.com/v1/messages");
+                httpRequest.Headers.Add("x-api-key", apiKey);
+                httpRequest.Headers.Add("anthropic-version", "2023-06-01");
+                httpRequest.Content = content;
+
+                var started = DateTimeOffset.UtcNow;
+                using var throttleLease = await _throttle.AcquireAsync(cancellationToken);
+                using var httpResponse = await _http.SendAsync(httpRequest, cancellationToken);
+                var responseJson = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
+                var elapsedMs = (long)(DateTimeOffset.UtcNow - started).TotalMilliseconds;
+                iterationActivity?.SetTag("http.status_code", (int)httpResponse.StatusCode);
+                iterationActivity?.SetTag("investigate.elapsed_ms", elapsedMs);
+
+                if (!httpResponse.IsSuccessStatusCode)
+                {
+                    _audit.Record(new AuditEntry
+                    {
+                        Kind = AuditEntryKind.Investigate,
+                        NodeId = request.NodeId,
+                        PromptHash = PromptHasher.Hash(json),
+                        InputTokens = 0,
+                        OutputTokens = 0,
+                        ElapsedMs = elapsedMs,
+                        Model = "claude-opus-4-6",
+                        UsedTools = false,
+                        StatusCode = (int)httpResponse.StatusCode
+                    });
+
+                    iterationActivity?.SetTag("error.type", "HttpRequestException");
+                    iterationActivity?.SetTag("error.message", $"Anthropic API returned {(int)httpResponse.StatusCode}");
+
+                    _logger.LogError("Anthropic API error {Status}: {Body}",
+                        (int)httpResponse.StatusCode, responseJson);
+                    throw new HttpRequestException(
+                        $"Anthropic API returned {(int)httpResponse.StatusCode}: {responseJson}",
+                        null,
+                        httpResponse.StatusCode);
+                }
+
+                using var doc   = JsonDocument.Parse(responseJson);
+                var root        = doc.RootElement;
+                var stopReason  = root.GetProperty("stop_reason").GetString();
+                var contentArr  = root.GetProperty("content");
+                var usage       = root.TryGetProperty("usage", out var usageEl) ? usageEl : default;
+                var inputTokens = usage.ValueKind == JsonValueKind.Object && usage.TryGetProperty("input_tokens", out var inEl)
+                    ? inEl.GetInt32()
+                    : 0;
+                var outputTokens = usage.ValueKind == JsonValueKind.Object && usage.TryGetProperty("output_tokens", out var outEl)
+                    ? outEl.GetInt32()
+                    : 0;
+                var usedTools = contentArr.EnumerateArray()
+                    .Any(block => block.TryGetProperty("type", out var t) && t.GetString() == "tool_use");
+                iterationActivity?.SetTag("claude.stop_reason", stopReason);
+                iterationActivity?.SetTag("claude.input_tokens", inputTokens);
+                iterationActivity?.SetTag("claude.output_tokens", outputTokens);
+                iterationActivity?.SetTag("investigate.used_tools", usedTools);
+
                 _audit.Record(new AuditEntry
                 {
                     Kind = AuditEntryKind.Investigate,
                     NodeId = request.NodeId,
                     PromptHash = PromptHasher.Hash(json),
-                    InputTokens = 0,
-                    OutputTokens = 0,
+                    InputTokens = inputTokens,
+                    OutputTokens = outputTokens,
                     ElapsedMs = elapsedMs,
                     Model = "claude-opus-4-6",
-                    UsedTools = false,
+                    UsedTools = usedTools,
                     StatusCode = (int)httpResponse.StatusCode
                 });
 
-                _logger.LogError("Anthropic API error {Status}: {Body}",
-                    (int)httpResponse.StatusCode, responseJson);
-                throw new HttpRequestException(
-                    $"Anthropic API returned {(int)httpResponse.StatusCode}: {responseJson}",
-                    null,
-                    httpResponse.StatusCode);
-            }
+                // Collect all blocks in this turn
+                var assistantBlocks = new List<object>();
+                var toolUseBlocks   = new List<ToolInvocation>();
 
-            using var doc   = JsonDocument.Parse(responseJson);
-            var root        = doc.RootElement;
-            var stopReason  = root.GetProperty("stop_reason").GetString();
-            var contentArr  = root.GetProperty("content");
-            var usage       = root.TryGetProperty("usage", out var usageEl) ? usageEl : default;
-            var inputTokens = usage.ValueKind == JsonValueKind.Object && usage.TryGetProperty("input_tokens", out var inEl)
-                ? inEl.GetInt32()
-                : 0;
-            var outputTokens = usage.ValueKind == JsonValueKind.Object && usage.TryGetProperty("output_tokens", out var outEl)
-                ? outEl.GetInt32()
-                : 0;
-            var usedTools = contentArr.EnumerateArray()
-                .Any(block => block.TryGetProperty("type", out var t) && t.GetString() == "tool_use");
-
-            _audit.Record(new AuditEntry
-            {
-                Kind = AuditEntryKind.Investigate,
-                NodeId = request.NodeId,
-                PromptHash = PromptHasher.Hash(json),
-                InputTokens = inputTokens,
-                OutputTokens = outputTokens,
-                ElapsedMs = elapsedMs,
-                Model = "claude-opus-4-6",
-                UsedTools = usedTools,
-                StatusCode = (int)httpResponse.StatusCode
-            });
-
-            // Collect all blocks in this turn
-            var assistantBlocks = new List<object>();
-            var toolUseBlocks   = new List<ToolInvocation>();
-
-            foreach (var block in contentArr.EnumerateArray())
-            {
-                var type = block.GetProperty("type").GetString();
-
-                if (type == "text")
+                foreach (var block in contentArr.EnumerateArray())
                 {
-                    var text = block.GetProperty("text").GetString() ?? "";
-                    assistantBlocks.Add(new { type = "text", text });
+                    var type = block.GetProperty("type").GetString();
 
-                    // Try to parse the final JSON answer from raw, fenced, or mixed text.
-                    if (TryParseConclusionPayload(text, out var parsedConclusion, out var parsedSeverity, out var parsedAction))
+                    if (type == "text")
                     {
-                        conclusion        = parsedConclusion ?? conclusion;
-                        severity          = parsedSeverity ?? severity;
-                        recommendedAction = parsedAction ?? recommendedAction;
+                        var text = block.GetProperty("text").GetString() ?? "";
+                        assistantBlocks.Add(new { type = "text", text });
+
+                        // Try to parse the final JSON answer from raw, fenced, or mixed text.
+                        if (TryParseConclusionPayload(text, out var parsedConclusion, out var parsedSeverity, out var parsedAction))
+                        {
+                            conclusion        = parsedConclusion ?? conclusion;
+                            severity          = parsedSeverity ?? severity;
+                            recommendedAction = parsedAction ?? recommendedAction;
+                        }
+                    }
+                    else if (type == "tool_use")
+                    {
+                        var toolUseId = block.GetProperty("id").GetString()    ?? "";
+                        var toolName  = block.GetProperty("name").GetString()   ?? "";
+                        var toolInput = block.GetProperty("input").Clone();
+
+                        assistantBlocks.Add(new
+                        {
+                            type  = "tool_use",
+                            id    = toolUseId,
+                            name  = toolName,
+                            input = toolInput
+                        });
+
+                        toolUseBlocks.Add(new ToolInvocation
+                        {
+                            ToolUseId = toolUseId,
+                            ToolName  = toolName,
+                            Input     = toolInput
+                        });
                     }
                 }
-                else if (type == "tool_use")
+
+                // Append assistant turn to history
+                messages.Add(new { role = "assistant", content = assistantBlocks });
+
+                if (stopReason == "end_turn" || !toolUseBlocks.Any())
+                    break;
+
+                // Execute each tool and append a user turn with all results
+                var toolResults = new List<object>();
+                foreach (var invocation in toolUseBlocks)
                 {
-                    var toolUseId = block.GetProperty("id").GetString()    ?? "";
-                    var toolName  = block.GetProperty("name").GetString()   ?? "";
-                    var toolInput = block.GetProperty("input").Clone();
+                    using var toolActivity = TallgrassTelemetry.Investigate.StartActivity(
+                        "InvestigateService.ExecuteTool",
+                        ActivityKind.Internal);
+                    toolActivity?.SetTag("tool.name", invocation.ToolName);
+                    toolActivity?.SetTag("tool.use_id", invocation.ToolUseId);
 
-                    assistantBlocks.Add(new
-                    {
-                        type  = "tool_use",
-                        id    = toolUseId,
-                        name  = toolName,
-                        input = toolInput
-                    });
+                    toolsInvoked.Add(invocation.ToolName);
+                    _logger.LogDebug("Tool call: {Tool} input={Input}",
+                        invocation.ToolName,
+                        invocation.Input.GetRawText());
 
-                    toolUseBlocks.Add(new ToolInvocation
+                    var result = PipelineTools.Execute(invocation.ToolName, invocation.Input);
+                    toolActivity?.SetTag("tool.result_length", result.Length);
+
+                    toolResults.Add(new
                     {
-                        ToolUseId = toolUseId,
-                        ToolName  = toolName,
-                        Input     = toolInput
+                        type        = "tool_result",
+                        tool_use_id = invocation.ToolUseId,
+                        content     = result
                     });
                 }
+
+                messages.Add(new { role = "user", content = toolResults });
             }
 
-            // Append assistant turn to history
-            messages.Add(new { role = "assistant", content = assistantBlocks });
+            activity?.SetTag("investigate.iterations", iterations);
+            activity?.SetTag("investigate.tools_invoked", toolsInvoked.Count);
+            activity?.SetTag("investigate.final_severity", severity);
 
-            if (stopReason == "end_turn" || !toolUseBlocks.Any())
-                break;
-
-            // Execute each tool and append a user turn with all results
-            var toolResults = new List<object>();
-            foreach (var invocation in toolUseBlocks)
+            return new InvestigateResponse
             {
-                toolsInvoked.Add(invocation.ToolName);
-                _logger.LogDebug("Tool call: {Tool} input={Input}",
-                    invocation.ToolName,
-                    invocation.Input.GetRawText());
-
-                var result = PipelineTools.Execute(invocation.ToolName, invocation.Input);
-
-                toolResults.Add(new
-                {
-                    type        = "tool_result",
-                    tool_use_id = invocation.ToolUseId,
-                    content     = result
-                });
-            }
-
-            messages.Add(new { role = "user", content = toolResults });
+                NodeId            = request.NodeId,
+                Conclusion        = conclusion,
+                Severity          = severity,
+                RecommendedAction = recommendedAction,
+                ToolsInvoked      = toolsInvoked,
+                Iterations        = iterations
+            };
         }
-
-        return new InvestigateResponse
+        catch (Exception ex)
         {
-            NodeId            = request.NodeId,
-            Conclusion        = conclusion,
-            Severity          = severity,
-            RecommendedAction = recommendedAction,
-            ToolsInvoked      = toolsInvoked,
-            Iterations        = iterations
-        };
+            activity?.SetTag("error.type", ex.GetType().FullName);
+            activity?.SetTag("error.message", ex.Message);
+            throw;
+        }
     }
 
     private static bool TryParseConclusionPayload(

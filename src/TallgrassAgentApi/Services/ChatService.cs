@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using TallgrassAgentApi.Models;
+using TallgrassAgentApi.Telemetry;
 
 namespace TallgrassAgentApi.Services;
 
@@ -51,6 +53,14 @@ public class ChatService : IChatService
         ChatRequest request,
         CancellationToken cancellationToken = default)
     {
+        using var activity = TallgrassTelemetry.Chat.StartActivity(
+            "ChatService.SendTurn",
+            ActivityKind.Internal);
+        activity?.SetTag("claude.model", "claude-opus-4-6");
+        activity?.SetTag("chat.incident_id", incidentId);
+        activity?.SetTag("chat.node_id", nodeId);
+        activity?.SetTag("chat.user_message_length", request.Message?.Length ?? 0);
+
         var apiKey = _config["Anthropic:ApiKey"]
             ?? throw new InvalidOperationException("Anthropic:ApiKey not configured");
 
@@ -61,7 +71,7 @@ public class ChatService : IChatService
         var userMessage = new ChatMessage
         {
             Role      = "user",
-            Content   = request.Message,
+            Content   = request.Message ?? string.Empty,
             Timestamp = DateTimeOffset.UtcNow
         };
         _store.Append(incidentId, userMessage);
@@ -70,6 +80,7 @@ public class ChatService : IChatService
         List<ChatMessage> snapshot;
         lock (state.Messages)
             snapshot = state.Messages.ToList();
+        activity?.SetTag("chat.history_messages_count", snapshot.Count);
 
         var apiMessages = snapshot.Select(m => new { role = m.Role, content = m.Content }).ToList();
 
@@ -95,6 +106,8 @@ public class ChatService : IChatService
         using var httpResponse = await _http.SendAsync(httpRequest, cancellationToken);
         var responseJson = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
         var elapsedMs = (long)(DateTimeOffset.UtcNow - started).TotalMilliseconds;
+        activity?.SetTag("http.status_code", (int)httpResponse.StatusCode);
+        activity?.SetTag("chat.elapsed_ms", elapsedMs);
 
         if (!httpResponse.IsSuccessStatusCode)
         {
@@ -111,6 +124,9 @@ public class ChatService : IChatService
                 UsedTools = false,
                 StatusCode = (int)httpResponse.StatusCode
             });
+
+            activity?.SetTag("error.type", "HttpRequestException");
+            activity?.SetTag("error.message", $"Anthropic API returned {(int)httpResponse.StatusCode}");
 
             _logger.LogError("Anthropic API error {Status}: {Body}",
                 (int)httpResponse.StatusCode, responseJson);
@@ -147,6 +163,9 @@ public class ChatService : IChatService
         var outputTokens = usage.ValueKind == JsonValueKind.Object && usage.TryGetProperty("output_tokens", out var outEl)
             ? outEl.GetInt32()
             : 0;
+        activity?.SetTag("claude.input_tokens", inputTokens);
+        activity?.SetTag("claude.output_tokens", outputTokens);
+        activity?.SetTag("chat.reply_length", replyText.Length);
 
         _audit.Record(new AuditEntry
         {
@@ -174,6 +193,7 @@ public class ChatService : IChatService
         List<ChatMessage> finalSnapshot;
         lock (state.Messages)
             finalSnapshot = state.Messages.ToList();
+        activity?.SetTag("chat.turn_count", finalSnapshot.Count(m => m.Role == "user"));
 
         return new ChatResponse
         {
