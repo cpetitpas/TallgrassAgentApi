@@ -38,9 +38,12 @@ else
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-var otlpEndpoint = builder.Configuration["Otel:OtlpEndpoint"] ?? "http://localhost:4317";
+var otlpEndpoint = builder.Configuration["AspireDashboard:Otlp:EndpointUrl"];
 var otlpApiKey = builder.Configuration["AspireDashboard:Otlp:PrimaryApiKey"];
 var resourceBuilder = ResourceBuilder.CreateDefault().AddService(TallgrassTelemetry.ServiceName);
+
+// Only configure OTLP exporters if explicitly configured and not in Testing environment
+var shouldConfigureOtlp = !builder.Environment.IsEnvironment("Testing") && !string.IsNullOrWhiteSpace(otlpEndpoint);
 
 if (builder.Environment.IsDevelopment())
 {
@@ -84,43 +87,58 @@ builder.Logging.AddOpenTelemetry(logging =>
     logging.IncludeScopes = true;
     logging.ParseStateValues = true;
     logging.SetResourceBuilder(resourceBuilder);
-    logging.AddOtlpExporter(o =>
+    if (shouldConfigureOtlp)
     {
-        o.Endpoint = new Uri(otlpEndpoint);
-        o.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
-        if (!string.IsNullOrWhiteSpace(otlpApiKey))
-            o.Headers = $"x-otlp-api-key={otlpApiKey}";
-    });
+        logging.AddOtlpExporter(o =>
+        {
+            o.Endpoint = new Uri(otlpEndpoint!);
+            o.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
+            if (!string.IsNullOrWhiteSpace(otlpApiKey))
+                o.Headers = $"x-otlp-api-key={otlpApiKey}";
+        });
+    }
 });
 
 // OpenTelemetry
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(r => r.AddService(TallgrassTelemetry.ServiceName))
-    .WithMetrics(metrics => metrics
-        .AddAspNetCoreInstrumentation()
-        .AddHttpClientInstrumentation()
-        .AddRuntimeInstrumentation()
-        .AddOtlpExporter(o =>
+    .WithMetrics(metrics =>
+    {
+        metrics
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation()
+            .AddRuntimeInstrumentation();
+        if (shouldConfigureOtlp)
         {
-            o.Endpoint = new Uri(otlpEndpoint);
-            o.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
-            if (!string.IsNullOrWhiteSpace(otlpApiKey))
-                o.Headers = $"x-otlp-api-key={otlpApiKey}";
-        }))
-    .WithTracing(tracing => tracing
-        .AddSource(TallgrassTelemetry.Claude.Name)
-        .AddSource(TallgrassTelemetry.Investigate.Name)
-        .AddSource(TallgrassTelemetry.Chat.Name)
-        .AddSource(TallgrassTelemetry.Node.Name)
-        .AddAspNetCoreInstrumentation()   // auto-spans every HTTP request
-        .AddHttpClientInstrumentation()   // auto-spans every outbound HttpClient call
-        .AddOtlpExporter(o =>
+            metrics.AddOtlpExporter(o =>
+            {
+                o.Endpoint = new Uri(otlpEndpoint!);
+                o.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
+                if (!string.IsNullOrWhiteSpace(otlpApiKey))
+                    o.Headers = $"x-otlp-api-key={otlpApiKey}";
+            });
+        }
+    })
+    .WithTracing(tracing =>
+    {
+        tracing
+            .AddSource(TallgrassTelemetry.Claude.Name)
+            .AddSource(TallgrassTelemetry.Investigate.Name)
+            .AddSource(TallgrassTelemetry.Chat.Name)
+            .AddSource(TallgrassTelemetry.Node.Name)
+            .AddAspNetCoreInstrumentation()   // auto-spans every HTTP request
+            .AddHttpClientInstrumentation();  // auto-spans every outbound HttpClient call
+        if (shouldConfigureOtlp)
         {
-            o.Endpoint = new Uri(otlpEndpoint);
-            o.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
-            if (!string.IsNullOrWhiteSpace(otlpApiKey))
-                o.Headers = $"x-otlp-api-key={otlpApiKey}";
-        }));
+            tracing.AddOtlpExporter(o =>
+            {
+                o.Endpoint = new Uri(otlpEndpoint!);
+                o.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.Grpc;
+                if (!string.IsNullOrWhiteSpace(otlpApiKey))
+                    o.Headers = $"x-otlp-api-key={otlpApiKey}";
+            });
+        }
+    });
 
 // Auto-launch Aspire Dashboard in Development (no Docker required)
 if (builder.Environment.IsDevelopment())
