@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using TallgrassAgentApi.Models;
+using TallgrassAgentApi.Telemetry;
 
 namespace TallgrassAgentApi.Services;
 
@@ -131,6 +133,12 @@ public class ClaudeService : IClaudeService
 
     public async Task<string> AnalyzeAlarmAsync(AlarmRequest alarm, CancellationToken ct = default)
     {
+        using var activity = TallgrassTelemetry.Claude.StartActivity("ClaudeService.AnalyzeAlarm", ActivityKind.Internal);
+        activity?.SetTag("claude.model", Model);
+        activity?.SetTag("tallgrass.node_id", alarm.NodeId);
+        activity?.SetTag("tallgrass.alarm_type", alarm.AlarmType);
+        activity?.SetTag("tallgrass.unit", alarm.Unit);
+
         var prompt = $"""
             You are an expert pipeline infrastructure analyst.
             Analyze the following alarm event and respond with a JSON object containing:
@@ -148,15 +156,33 @@ public class ClaudeService : IClaudeService
             Respond ONLY with the JSON object. No explanation, no markdown, just JSON.
             """;
 
-        return await SendToClaudeAsync(prompt, AuditEntryKind.Alarm, alarm.NodeId, ct);
+        try
+        {
+            var result = await SendToClaudeAsync(prompt, AuditEntryKind.Alarm, alarm.NodeId, ct);
+            activity?.SetTag("claude.response_length", result.Length);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            activity?.SetTag("error.type", ex.GetType().FullName);
+            activity?.SetTag("error.message", ex.Message);
+            throw;
+        }
     }
 
     public async Task<string> AnalyzeFlowAsync(FlowRequest flow, CancellationToken ct = default)
     {
+        using var activity = TallgrassTelemetry.Claude.StartActivity("ClaudeService.AnalyzeFlow", ActivityKind.Internal);
+        activity?.SetTag("claude.model", Model);
+        activity?.SetTag("tallgrass.node_id", flow.NodeId);
+        activity?.SetTag("tallgrass.pipeline_segment", flow.PipelineSegment);
+        activity?.SetTag("tallgrass.flow_direction", flow.FlowDirection);
+
         var variance = flow.ExpectedFlowRate != 0
             ? ((flow.FlowRate - flow.ExpectedFlowRate) / flow.ExpectedFlowRate) * 100
             : 0;
         var direction = variance >= 0 ? "above" : "below";
+        activity?.SetTag("tallgrass.variance_percent", variance);
 
         var prompt = $"""
             You are an expert natural gas pipeline infrastructure analyst.
@@ -177,11 +203,27 @@ public class ClaudeService : IClaudeService
             Respond ONLY with the JSON object. No explanation, no markdown, just JSON.
             """;
 
-        return await SendToClaudeAsync(prompt, AuditEntryKind.Flow, flow.NodeId, ct);
+        try
+        {
+            var result = await SendToClaudeAsync(prompt, AuditEntryKind.Flow, flow.NodeId, ct);
+            activity?.SetTag("claude.response_length", result.Length);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            activity?.SetTag("error.type", ex.GetType().FullName);
+            activity?.SetTag("error.message", ex.Message);
+            throw;
+        }
     }
 
     public async Task<string> AnalyzeMultiNodeAsync(MultiNodeRequest request, CancellationToken ct = default)
     {
+        using var activity = TallgrassTelemetry.Claude.StartActivity("ClaudeService.AnalyzeMultiNode", ActivityKind.Internal);
+        activity?.SetTag("claude.model", Model);
+        activity?.SetTag("tallgrass.region_id", request.RegionId);
+        activity?.SetTag("tallgrass.readings_count", request.Readings.Count);
+
         var readingLines = request.Readings.Select(r =>
         {
             var variance = r.ExpectedValue != 0
@@ -219,6 +261,17 @@ public class ClaudeService : IClaudeService
         Return raw JSON only with no additional text.
         """;
 
-        return await SendToClaudeAsync(prompt, AuditEntryKind.MultiNode, request.RegionId, ct, maxTokens: 1024);
+        try
+        {
+            var result = await SendToClaudeAsync(prompt, AuditEntryKind.MultiNode, request.RegionId, ct, maxTokens: 1024);
+            activity?.SetTag("claude.response_length", result.Length);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            activity?.SetTag("error.type", ex.GetType().FullName);
+            activity?.SetTag("error.message", ex.Message);
+            throw;
+        }
     }
 }

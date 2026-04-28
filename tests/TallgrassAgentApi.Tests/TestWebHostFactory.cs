@@ -16,6 +16,10 @@ internal static class TestWebHostFactory
     {
         return factory.WithWebHostBuilder(builder =>
         {
+            // Prevent Development-only background services (e.g. Aspire dashboard runner)
+            // from being started inside test hosts.
+            builder.UseEnvironment("Testing");
+
             // Silence host/framework logs in tests to keep output focused.
             builder.ConfigureLogging(logging =>
             {
