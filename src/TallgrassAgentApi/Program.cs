@@ -42,6 +42,42 @@ var otlpEndpoint = builder.Configuration["Otel:OtlpEndpoint"] ?? "http://localho
 var otlpApiKey = builder.Configuration["AspireDashboard:Otlp:PrimaryApiKey"];
 var resourceBuilder = ResourceBuilder.CreateDefault().AddService(TallgrassTelemetry.ServiceName);
 
+if (builder.Environment.IsDevelopment())
+{
+    var frontendAuthMode = builder.Configuration["AspireDashboard:Frontend:AuthMode"];
+    var frontendBrowserToken = builder.Configuration["AspireDashboard:Frontend:BrowserToken"];
+    var otlpAuthMode = builder.Configuration["AspireDashboard:Otlp:AuthMode"];
+    var mcpAuthMode = builder.Configuration["AspireDashboard:Mcp:AuthMode"];
+    var mcpPrimaryApiKey = builder.Configuration["AspireDashboard:Mcp:PrimaryApiKey"];
+
+    var missingEnvVars = new List<string>();
+
+    if (string.Equals(frontendAuthMode, "BrowserToken", StringComparison.OrdinalIgnoreCase) &&
+        string.IsNullOrWhiteSpace(frontendBrowserToken))
+    {
+        missingEnvVars.Add("AspireDashboard__Frontend__BrowserToken");
+    }
+
+    if (string.Equals(otlpAuthMode, "ApiKey", StringComparison.OrdinalIgnoreCase) &&
+        string.IsNullOrWhiteSpace(otlpApiKey))
+    {
+        missingEnvVars.Add("AspireDashboard__Otlp__PrimaryApiKey");
+    }
+
+    if (string.Equals(mcpAuthMode, "ApiKey", StringComparison.OrdinalIgnoreCase) &&
+        string.IsNullOrWhiteSpace(mcpPrimaryApiKey))
+    {
+        missingEnvVars.Add("AspireDashboard__Mcp__PrimaryApiKey");
+    }
+
+    if (missingEnvVars.Count > 0)
+    {
+        throw new InvalidOperationException(
+            "Aspire dashboard security is enabled but required secrets are missing. " +
+            $"Set these environment variables: {string.Join(", ", missingEnvVars)}.");
+    }
+}
+
 builder.Logging.AddOpenTelemetry(logging =>
 {
     logging.IncludeFormattedMessage = true;
